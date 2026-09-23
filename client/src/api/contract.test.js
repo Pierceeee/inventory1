@@ -1,9 +1,12 @@
-import { db } from './db.js'
-import { listDevices, getDevice, createDevice } from '../api/devices.js'
-import { getEmployee, resignEmployee } from '../api/employees.js'
-import { issueDevice, returnDevice, listAssignments } from '../api/assignments.js'
-import { getDashboard } from '../api/dashboard.js'
+// The api/ modules against the real server: the contract the screens rely on.
+import { db, refreshDb } from '../test/liveDb.js'
+import { listDevices, getDevice, createDevice, updateDevice } from './devices.js'
+import { getEmployee, resignEmployee } from './employees.js'
+import { issueDevice, returnDevice, listAssignments } from './assignments.js'
+import { getDashboard } from './dashboard.js'
+import { fetchWithAuth, SIGNED_OUT_EVENT } from './client.js'
 import { ApiError } from '../lib/errors.js'
+import { getSession, setSession } from '../lib/session.js'
 
 const freeLaptop = () => db.devices.find(
   (d) => d.type === 'laptop' && d.status === 'available' &&
@@ -107,6 +110,7 @@ test('resigning does NOT close assignments', async () => {
   const { data } = await resignEmployee(open.employee_id)
   expect(data.status).toBe('resigned')
 
+  await refreshDb()
   const after = db.assignments.filter(
     (a) => a.employee_id === open.employee_id && a.returned_at === null).length
   expect(after).toBe(before)
@@ -132,32 +136,9 @@ test('dashboard counts agree with the device list', async () => {
   expect(dash.data.by_type.map((t) => t.type)).toEqual(['laptop', 'mobile'])
 })
 
-describe('seed integrity', () => {
-  test('no device has two open assignments', () => {
-    const open = db.assignments.filter((a) => a.returned_at === null).map((a) => a.device_id)
-    expect(new Set(open).size).toBe(open.length)
-  })
-  test('no retired or in-repair device is held', () => {
-    for (const d of db.devices.filter((x) => x.status !== 'available')) {
-      expect(db.assignments.some((a) => a.device_id === d.id && a.returned_at === null)).toBe(false)
-    }
-  })
-  test('a resigned employee still holds devices', () => {
-    const resigned = db.employees.filter((e) => e.status === 'resigned')
-    expect(resigned.some((e) =>
-      db.assignments.some((a) => a.employee_id === e.id && a.returned_at === null))).toBe(true)
-  })
-  test('an available device has closed history', () => {
-    expect(db.devices.some((d) =>
-      d.status === 'available' &&
-      !db.assignments.some((a) => a.device_id === d.id && a.returned_at === null) &&
-      db.assignments.some((a) => a.device_id === d.id))).toBe(true)
-  })
-})
-
 describe('CSV export (§6)', () => {
-  const fetchCsv = (qs = '') =>
-    fetch(`http://localhost/api/export/assignments${qs}`).then(async (r) => [r, await r.text()])
+  const fetchCsv = (params) =>
+    fetchWithAuth('/export/assignments', { params }).then(async (r) => [r, await r.text()])
 
   test('returns a CSV attachment with a header row per handout', async () => {
     const [response, text] = await fetchCsv()
@@ -184,7 +165,7 @@ describe('CSV export (§6)', () => {
 
   // A model name containing a comma must not silently become two columns.
   test('quotes every field so commas in the data cannot shift columns', async () => {
-    db.devices[0].model = 'MacBook Air, 13-inch'
+    await updateDevice(db.devices[0].id, { model: 'MacBook Air, 13-inch' })
     const [, text] = await fetchCsv()
     expect(text).toContain('"MacBook Air, 13-inch"')
     const row = text.split('\n').find((l) => l.includes('MacBook Air, 13-inch'))
@@ -194,13 +175,51 @@ describe('CSV export (§6)', () => {
   test('the date range filter narrows the export', async () => {
     const from = new Date(Date.now() - 100 * 86_400_000).toISOString()
     const [, all] = await fetchCsv()
-    const [, ranged] = await fetchCsv(`?from=${encodeURIComponent(from)}`)
+    const [, ranged] = await fetchCsv({ from })
     expect(ranged.trim().split('\n').length).toBeLessThan(all.trim().split('\n').length)
   })
 
   test('open=true exports only handouts still out', async () => {
-    const [, text] = await fetchCsv('?open=true')
+    const [, text] = await fetchCsv({ open: 'true' })
     const expected = db.assignments.filter((a) => a.returned_at === null).length
     expect(text.trim().split('\n')).toHaveLength(expected + 1)
+  })
+})
+
+describe('session renewal', () => {
+  const allen = () => getSession()
+
+  test('an expired token is renewed once and the request goes through', async () => {
+    const good = allen()
+    setSession({ ...good, token: 'test.expired' })
+
+    const { data } = await listDevices()
+    expect(data.length).toBe(db.devices.length)
+    expect(getSession().token).toBe(good.token)
+  })
+
+  test('a refused renewal ends the session and says so', async () => {
+    setSession({ ...allen(), token: 'test.expired', refresh_token: 'revoked' })
+    const signedOut = vi.fn()
+    window.addEventListener(SIGNED_OUT_EVENT, signedOut)
+
+    const error = await listDevices().catch((e) => e)
+    window.removeEventListener(SIGNED_OUT_EVENT, signedOut)
+
+    expect(error.status).toBe(401)
+    expect(getSession()).toBeNull()
+    expect(signedOut).toHaveBeenCalledOnce()
+  })
+
+  test('many requests failing together share one renewal', async () => {
+    setSession({ ...allen(), token: 'test.expired' })
+    const spy = vi.spyOn(globalThis, 'fetch')
+
+    const results = await Promise.all([listDevices(), getDashboard(), listAssignments()])
+    const renewals = spy.mock.calls.filter(([url]) => String(url).includes('/auth/refresh'))
+    spy.mockRestore()
+
+    expect(results.every((r) => r.data)).toBe(true)
+    expect(renewals).toHaveLength(1)
   })
 })

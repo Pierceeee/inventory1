@@ -1,11 +1,19 @@
-import { createContext, useCallback, useContext, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { getSession, setSession, clearSession } from '../lib/session.js'
 import { signIn as signInRequest } from '../api/auth.js'
+import { SIGNED_OUT_EVENT } from '../api/client.js'
 
 const SessionContext = createContext(null)
 
 export function SessionProvider({ children }) {
   const [session, setLocal] = useState(() => getSession())
+
+  // The api client ends the session when it can no longer be renewed.
+  useEffect(() => {
+    const onSignedOut = () => setLocal(null)
+    window.addEventListener(SIGNED_OUT_EVENT, onSignedOut)
+    return () => window.removeEventListener(SIGNED_OUT_EVENT, onSignedOut)
+  }, [])
 
   const signIn = useCallback(async (email, password) => {
     const { data } = await signInRequest(email, password)

@@ -1,4 +1,4 @@
-const BASE = import.meta.env?.VITE_API_BASE_URL || ''
+import { fetchWithAuth } from './client.js'
 
 /**
  * Downloads rather than returning JSON, so it bypasses the api client's
@@ -6,13 +6,7 @@ const BASE = import.meta.env?.VITE_API_BASE_URL || ''
  * instead of navigating away from the app.
  */
 export async function downloadAssignmentsCsv(params = {}) {
-  const search = new URLSearchParams()
-  for (const [key, value] of Object.entries(params)) {
-    if (value === undefined || value === null || value === '') continue
-    search.set(key, String(value))
-  }
-  const qs = search.toString()
-  const response = await fetch(`${BASE}/api/export/assignments${qs ? `?${qs}` : ''}`)
+  const response = await fetchWithAuth('/export/assignments', { params })
   if (!response.ok) throw new Error('Export failed')
 
   const blob = await response.blob()

@@ -615,3 +615,25 @@ None blocking. Revisit after BE-4:
   at an offboarding dispute.
 - Hosting: the cloud-vs-office-network decision was deferred while this runs locally.
 - AKM integration: `asset_tag` ↔ `itemCode` is the join key when you're ready.
+
+---
+
+## 12. Backend as built (2026-09-23)
+
+BE-1 to BE-7 and the cutover are done. `client/src/mocks/` and MSW are gone; the
+component tests now run against the real Express app over an in-process Postgres
+(PGlite) with the real migrations. Where the build departs from §3–§10:
+
+| Change | Why |
+|---|---|
+| Data access uses **node-postgres** over Supabase's Postgres connection string, not supabase-js | Real SQL: the §4 view, parameterised search, one-statement imports. The same code runs against PGlite in tests, so the partial unique index and `23505` path are tested for real, without Docker. |
+| **`/api/auth/login`, `/refresh`, `/me` are kept** as real endpoints; the server calls Supabase Auth | The browser holds no Supabase configuration, and `client/src/api/auth.js` did not change shape. §6 had them deleted at cutover. |
+| **Sessions renew** on a 401 using the refresh token, once for many concurrent requests; a refused renewal signs out | Contract mismatch: mock tokens never expired, Supabase's expire after an hour. |
+| **CSV export sends the bearer token** | Contract mismatch: the mock did not check auth, so `exports.js` never sent it. |
+| `issued_by` / `returned_by` reference a **`profiles`** table (id = `auth.users.id`), upserted at sign-in and on each handout | History keeps a readable name, and the schema runs on any Postgres. |
+| Asset tag, serial and email uniqueness is **case-insensitive** | Matches the mock; `ASP-0042` and `asp-0042` are the same sticker. |
+| **Changing a held device's status** to repair or retired is a 409, like retiring it | Otherwise a device could be "issued" and "in repair" at once. |
+| `issued_at` / `returned_at` tolerate **5 minutes** of future clock drift | Times are stamped by the browser's clock. |
+| Export has a UTF-8 BOM and neutralises cells starting `=` `+` `-` `@` | Excel reads "Muñoz" correctly and never executes a note as a formula. |
+| Import also skips **duplicate serial numbers** | The unique index would otherwise drop them silently. |
+| **RLS enabled** on every table with no policies; views are `security_invoker` | Closes Supabase's auto-generated REST API to the anon key. The API connects as the table owner. |

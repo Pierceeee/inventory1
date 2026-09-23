@@ -7,7 +7,7 @@ import EmployeesPage from './EmployeesPage.jsx'
 import EmployeeDetailPage from './EmployeeDetailPage.jsx'
 import HandoutsPage from './HandoutsPage.jsx'
 import DashboardPage from './DashboardPage.jsx'
-import { db } from '../mocks/db.js'
+import { db, refreshDb } from '../test/liveDb.js'
 
 const rows = () => within(screen.getByRole('table')).getAllByRole('row').slice(1)
 const showDevice = (id) =>
@@ -172,6 +172,7 @@ describe('issuing a device', () => {
       const holderCard = screen.getByRole('region', { name: /current holder/i })
       expect(within(holderCard).getByText(employee.full_name)).toBeInTheDocument()
     })
+    await refreshDb()
     expect(db.assignments.some(
       (a) => a.device_id === device.id && a.employee_id === employee.id && a.returned_at === null),
     ).toBe(true)
@@ -232,6 +233,7 @@ describe('returning a device', () => {
 
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument())
     await waitFor(() => expect(screen.getByText(/not currently issued/i)).toBeInTheDocument())
+    await refreshDb()
     expect(db.assignments.find((a) => a.id === open.id).return_reason).toBe('swap')
   })
 })

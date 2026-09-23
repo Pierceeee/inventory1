@@ -7,7 +7,7 @@ import DashboardPage from './DashboardPage.jsx'
 import DevicesPage from './DevicesPage.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import Button from '../components/ui/Button.jsx'
-import { db } from '../mocks/db.js'
+import { db } from '../test/liveDb.js'
 
 const showDevice = (id) =>
   renderWithProviders(<DeviceDetailPage />, { route: `/devices/${id}`, path: '/devices/:id' })

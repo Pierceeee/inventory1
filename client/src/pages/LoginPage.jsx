@@ -65,12 +65,6 @@ export default function LoginPage() {
 
           <Button type="submit" disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</Button>
         </form>
-
-        <div className="mt-4 rounded-lg bg-slate-100 px-4 py-3 text-xs text-slate-600">
-          <p className="font-medium text-slate-700">Mock accounts — no real auth yet</p>
-          <p className="mt-1 font-mono">allen@adspark.ph · rina@adspark.ph · kim@adspark.ph</p>
-          <p className="font-mono">password: adspark</p>
-        </div>
       </div>
     </div>
   )

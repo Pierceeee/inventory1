@@ -1,9 +1,9 @@
 const KEY = 'dht.session'
 
 /**
- * The token is what BE-5 will verify as a real Supabase JWT. Everything above
- * this module only ever sees `getSession()` and `getToken()`, so swapping the
- * issuer later touches nothing else.
+ * The session is { token, refresh_token, expires_at, user }; the token is a
+ * Supabase JWT the API verifies. Everything above this module only ever sees
+ * `getSession()` and `getToken()`.
  *
  * Storage is wrapped because it throws in private windows and with site data
  * blocked - a signed-out state is a far better failure than a blank screen.
