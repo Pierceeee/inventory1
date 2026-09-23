@@ -10,16 +10,22 @@ import { applyMigrations } from '../../src/db/migrate.js'
 export async function createTestDb() {
   const pg = await bootPglite()
   const db = {
-    query: async (text, params) => {
-      const result = await pg.query(text, params)
-      return { rows: result.rows, rowCount: result.affectedRows ?? result.rows.length }
-    },
-    exec: (sql) => pg.exec(sql),
+    ...adapt(pg),
+    transaction: (fn) => pg.transaction((tx) => fn(adapt(tx))),
     close: () => pg.close(),
   }
   await applyMigrations(db)
   return db
 }
+
+/** PGlite's results -> the node-postgres shape the app expects. */
+const adapt = (pg) => ({
+  query: async (text, params) => {
+    const result = await pg.query(text, params)
+    return { rows: result.rows, rowCount: result.affectedRows ?? result.rows.length }
+  },
+  exec: (sql) => pg.exec(sql),
+})
 
 /** The client tests run under jsdom, whose Blob and File lack arrayBuffer() -
  *  which PGlite calls while unpacking its data directory at boot. Lend it

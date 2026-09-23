@@ -55,6 +55,8 @@ your existing spreadsheets from the **Import** page.
 |---|---|
 | `npm run dev` | API on :3001 and the app on :5173, both reloading on change |
 | `npm run db:migrate` | Applies any new files in `supabase/migrations/` |
+| `npm run db:seed` | Loads example devices, employees and handouts to try the app with |
+| `npm run db:seed:remove` | Deletes the example data again; real data is left alone |
 | `npm test` | Server tests, then the client's screen tests against the real API |
 | `npm run build` | Production build of the client into `client/dist/` |
 

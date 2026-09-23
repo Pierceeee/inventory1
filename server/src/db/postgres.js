@@ -2,9 +2,10 @@ import fs from 'node:fs'
 import pg from 'pg'
 
 /**
- * The whole app talks to the database through two calls:
+ * The whole app talks to the database through these calls:
  *   query(text, params) -> { rows, rowCount }   one parameterised statement
  *   exec(sql)                                    a multi-statement script (migrations)
+ *   transaction(fn)                              fn({ query, exec }) all-or-nothing
  * Tests satisfy the same interface with an in-process Postgres (PGlite), so the
  * services run unchanged against both.
  */
@@ -19,6 +20,23 @@ export function createPostgresDb({ connectionString, ssl }) {
   return {
     query: (text, params) => pool.query(text, params),
     exec: (sql) => pool.query(sql),
+    async transaction(fn) {
+      const client = await pool.connect()
+      try {
+        await client.query('begin')
+        const result = await fn({
+          query: (text, params) => client.query(text, params),
+          exec: (sql) => client.query(sql),
+        })
+        await client.query('commit')
+        return result
+      } catch (err) {
+        await client.query('rollback').catch(() => {})
+        throw err
+      } finally {
+        client.release()
+      }
+    },
     close: () => pool.end(),
   }
 }
