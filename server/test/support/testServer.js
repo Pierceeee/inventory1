@@ -1,4 +1,5 @@
 import { createApp } from '../../src/app.js'
+import { createScanRateLimiter } from '../../src/lib/rateLimit.js'
 import { createTestDb, emptyDb } from './testDb.js'
 import { createFakeAuth } from './fakeAuth.js'
 import { USERS, loadFixtures, snapshot } from './fixtures.js'
@@ -11,7 +12,10 @@ import { USERS, loadFixtures, snapshot } from './fixtures.js'
 export async function startTestServer() {
   const db = await createTestDb()
   const auth = createFakeAuth(USERS)
-  const app = createApp({ db, auth })
+  // The app (and this limiter) live for the whole test file - reset it on
+  // every reset() so one test's scans never count against another's budget.
+  const scanRateLimiter = createScanRateLimiter()
+  const app = createApp({ db, auth, settings: { scanRateLimiter } })
 
   const server = await new Promise((resolve) => {
     const s = app.listen(0, '127.0.0.1', () => resolve(s))
@@ -21,6 +25,8 @@ export async function startTestServer() {
     url: `http://127.0.0.1:${server.address().port}`,
     db,
     async reset() {
+      auth.reset()
+      scanRateLimiter.reset()
       await emptyDb(db)
       await loadFixtures(db)
     },

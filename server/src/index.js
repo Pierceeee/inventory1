@@ -13,11 +13,19 @@ try {
   process.exit(1)
 }
 
+if (!config.supabaseServiceRoleKey) {
+  console.warn(
+    '[auth] SUPABASE_SERVICE_ROLE_KEY is not set - the Register page will answer ' +
+    '503 REGISTRATION_UNAVAILABLE until it is added to .env.')
+}
+
 const db = createPostgresDb({
   connectionString: config.databaseUrl,
   ssl: sslConfigFrom(process.env, config.databaseUrl),
 })
-const auth = createSupabaseAuth({ url: config.supabaseUrl, key: config.supabaseKey })
+const auth = createSupabaseAuth({
+  url: config.supabaseUrl, key: config.supabaseKey, serviceRoleKey: config.supabaseServiceRoleKey,
+})
 const app = createApp({ db, auth })
 
 const server = app.listen(config.port, config.host, () => {

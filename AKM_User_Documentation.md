@@ -116,7 +116,7 @@ Each session belongs to one department and holds the items uploaded for that exe
 1. Go to **Sessions** in the sidebar
 2. Click **New Session**
 3. Enter a descriptive name (e.g., "Laptop Inventory June 2026")
-4. If you are an admin, select which department this session belongs to
+4. If you are an admin, select which department this session belongs to. A department head does not choose — the session is created in their own department automatically.
 5. Click **Create**
 
 ### Session Statuses
@@ -129,10 +129,11 @@ Each session belongs to one department and holds the items uploaded for that exe
 
 ### Marking a Session Complete
 
-Once all items have been accounted for, an admin can close the session:
+Once all items have been accounted for, an admin can close the session (only admins may do this — heads and scanners cannot):
 
 1. Open the session
 2. Click **Mark Complete** in the top-right header
+3. If any items are still pending, the confirmation dialog tells you how many before you commit
 
 This prevents any further scanning or uploads on that session.
 
@@ -164,9 +165,11 @@ All other columns in the file are imported automatically as additional data fiel
 
 1. Go to **Sessions** and find your target session (status must be **Active**)
 2. Click **Upload Excel** on the session card
-3. Choose your `.xlsx` or `.xls` file (drag and drop or click to browse)
+3. Choose your `.xlsx`, `.xls` or `.csv` file (drag and drop onto the box, or click to browse)
 4. Select which columns to display in the session's item table
-5. Click **Import**
+5. Click **Check file** to preview what will happen — this is a dry run; nothing is saved yet
+6. Review the preview: how many items will be added, and any rows that will be skipped (with their row number and reason)
+7. Click **Import** to commit
 
 The system will show how many items were added and list any rows that were skipped.
 
@@ -182,7 +185,7 @@ If you need to replace the entire dataset in a session with a new file:
 4. Click **Clear All Items**
 5. Upload your new Excel file as normal
 
-The session itself, its name, department, and all scan history are preserved. Only the item records are removed.
+The session itself, its name, department, and all scan history are preserved. Only the item records are removed, and the session's column list is reset — the next file you upload brings its own columns, so a differently-shaped spreadsheet is never mixed with the old one.
 
 ---
 
@@ -198,11 +201,16 @@ The session itself, its name, department, and all scan history are preserved. On
 **Camera Mode**
 - Points your device camera at a QR code printed on the item
 - The system detects and processes the code automatically — no button press needed
+- Requires a camera and a secure connection (**https://**, or **localhost** on the machine running the
+  server). A phone on the office Wi‑Fi needs Phase 8's HTTPS setup before Camera mode will work — until
+  then, Manual mode works everywhere, on any connection.
 
 **Manual Mode**
 - Type or paste the item code directly using a keyboard or handheld barcode scanner
 - Press Enter or click **Scan** to submit
-- Useful when the QR code sticker is damaged or unreadable
+- The input is never disabled while a scan is in flight, and it clears and refocuses immediately after
+  each one — a handheld scanner can be fired as fast as items pass by
+- Useful when the QR code sticker is damaged or unreadable, or when the camera is unavailable
 
 ### Scan Results
 
@@ -221,6 +229,16 @@ Admins can reverse a scan if an item was marked incorrectly:
 1. Find the item in the table below the scanner
 2. Click the **undo icon (↺)** on the right side of the row
 3. The item is reset to **Pending**
+
+### Printing QR Labels
+
+Admins can print a QR code sticker for every item in a session:
+
+1. Open the session and click **Print QR codes**
+2. Each item's QR code (encoding just its item code) is generated on the printout, with the code and the
+   item's first display column underneath
+3. Click **Print** to open the browser's print dialog — the app's sidebar and header are hidden
+   automatically so only the label grid prints
 
 ---
 
@@ -293,6 +311,8 @@ Scanners and department heads can only access data within their assigned departm
 ### Viewing Users (Admin only)
 
 Go to **Users** in the sidebar to see all registered accounts, their assigned roles, and their departments.
+This list includes anyone who was registered through **Register**, as well as anyone who has simply signed in
+at least once - a new account defaults to Scanner with no department until an admin assigns it.
 
 ### Registering a New User
 

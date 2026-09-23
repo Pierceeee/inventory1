@@ -4,6 +4,10 @@ export const OS_VALUES = ['macos', 'windows', 'ios', 'android']
 export const EMPLOYEE_STATUSES = ['active', 'resigned']
 export const RETURN_REASONS = ['resignation', 'swap', 'repair', 'lost', 'other']
 export const CONDITIONS = ['good', 'fair', 'damaged']
+export const ROLES = ['admin', 'head', 'scanner']
+// Custody (devices, employees, assignments, import, reports) is Admin + Head;
+// scanners get none of it (D2).
+export const CUSTODY_ROLES = ['admin', 'head']
 export const ACCESSORIES_FOR = {
   laptop: ['charger', 'case', 'box'],
   mobile: ['charger', 'case', 'sim', 'box'],

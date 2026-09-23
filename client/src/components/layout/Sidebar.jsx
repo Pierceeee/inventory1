@@ -2,17 +2,45 @@ import { NavLink } from 'react-router-dom'
 import Icon from '../ui/Icon.jsx'
 import { useSession } from '../../hooks/useSession.jsx'
 import { initialsOf } from '../../lib/session.js'
+import { CUSTODY_ROLES, ROLES, ROLE_LABELS } from '../../lib/roles.js'
 
-const LINKS = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/devices', label: 'Devices' },
-  { to: '/employees', label: 'Employees' },
-  { to: '/handouts', label: 'Handouts' },
-  { to: '/import', label: 'Import' },
+const SECTIONS = [
+  {
+    label: null,
+    links: [
+      { to: '/', label: 'Dashboard', end: true, roles: CUSTODY_ROLES },
+      { to: '/sessions', label: 'Sessions', roles: ROLES },
+    ],
+  },
+  {
+    label: 'Custody',
+    links: [
+      { to: '/devices', label: 'Devices', roles: CUSTODY_ROLES },
+      { to: '/employees', label: 'Employees', roles: CUSTODY_ROLES },
+      { to: '/handouts', label: 'Handouts', roles: CUSTODY_ROLES },
+      { to: '/import', label: 'Import', roles: CUSTODY_ROLES },
+    ],
+  },
+  {
+    label: 'Admin',
+    links: [
+      { to: '/users', label: 'Users', end: true, roles: ['admin'] },
+      { to: '/users/register', label: 'Register', roles: ['admin'] },
+      { to: '/departments', label: 'Departments', roles: ['admin'] },
+    ],
+  },
 ]
 
 export default function Sidebar({ open, onClose }) {
-  const { user, signOut } = useSession()
+  const { user, profile, role, profileLoading, signOut } = useSession()
+
+  // Nothing to filter by yet - showing every link while role is unknown would
+  // flash pages a scanner cannot reach.
+  const sections = profileLoading
+    ? []
+    : SECTIONS
+        .map((section) => ({ ...section, links: section.links.filter((link) => link.roles.includes(role)) }))
+        .filter((section) => section.links.length > 0)
 
   return (
     <>
@@ -23,7 +51,7 @@ export default function Sidebar({ open, onClose }) {
 
       <nav
         aria-label="Main"
-        className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform lg:static lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-40 flex w-60 shrink-0 flex-col border-r border-slate-200 bg-white transition-transform print:hidden lg:static lg:translate-x-0 ${
           open ? 'translate-x-0' : '-translate-x-full'
         }`}>
         <div className="flex items-start justify-between gap-2 border-b border-slate-200 px-5 py-4">
@@ -39,22 +67,33 @@ export default function Sidebar({ open, onClose }) {
           </button>
         </div>
 
-        <ul className="flex flex-col gap-0.5 p-3">
-          {LINKS.map((link) => (
-            <li key={link.to}>
-              <NavLink
-                to={link.to}
-                end={link.end}
-                onClick={onClose}
-                className={({ isActive }) =>
-                  `block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                    isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
-                  }`}>
-                {link.label}
-              </NavLink>
-            </li>
+        <div className="flex flex-col gap-4 p-3">
+          {sections.map((section, i) => (
+            <div key={section.label ?? i}>
+              {section.label && (
+                <p className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  {section.label}
+                </p>
+              )}
+              <ul className="flex flex-col gap-0.5">
+                {section.links.map((link) => (
+                  <li key={link.to}>
+                    <NavLink
+                      to={link.to}
+                      end={link.end}
+                      onClick={onClose}
+                      className={({ isActive }) =>
+                        `block rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+                          isActive ? 'bg-brand-50 text-brand-700' : 'text-slate-600 hover:bg-slate-100'
+                        }`}>
+                      {link.label}
+                    </NavLink>
+                  </li>
+                ))}
+              </ul>
+            </div>
           ))}
-        </ul>
+        </div>
 
         <div className="mt-auto border-t border-slate-200 p-3">
           {user && (
@@ -64,7 +103,11 @@ export default function Sidebar({ open, onClose }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900">{user.full_name}</p>
-                <p className="truncate text-xs text-slate-500">{user.email}</p>
+                <p className="truncate text-xs text-slate-500">
+                  {role
+                    ? [ROLE_LABELS[role], profile?.department?.name].filter(Boolean).join(' · ')
+                    : user.email}
+                </p>
               </div>
             </div>
           )}

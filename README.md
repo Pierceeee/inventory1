@@ -219,7 +219,8 @@ You need:
    |---|---|
    | `DATABASE_URL` | **Connect** button (top of project) → Method: **Session pooler** → copy, and put your password in place of `[YOUR-PASSWORD]` |
    | `SUPABASE_URL` | Project Settings → **Data API** → Project URL. Just `https://<something>.supabase.co` - nothing after it |
-   | `SUPABASE_ANON_KEY` | Project Settings → **API Keys** → the *publishable* (or legacy *anon*) key. **Not** the secret / service_role key |
+   | `SUPABASE_ANON_KEY` | Project Settings → **API Keys** → the *publishable* (or legacy *anon*) key |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → **API Keys** → the *secret* / *service_role* key. Optional - without it the server still runs, but the **Register** page can't create accounts until it's set |
 
    `.env` holds your database password. Never share it or commit it to git.
 
@@ -229,14 +230,23 @@ You need:
    npm run db:migrate
    ```
 
-   You should see `Applied 1 migration(s)`. The database starts completely empty.
+   You should see `Applied 2 migration(s)`. The database starts completely empty.
 
 5. **Turn off public sign-ups.** Supabase → Authentication → Sign In / Providers
    → switch off **Allow new users to sign up**. Anyone with an account can see
    and change everything, so only accounts you create should exist.
 
-6. **Create an account for each IT staff member.** Supabase → Authentication →
-   Users → **Add user** → *Create new user*, tick **Auto Confirm User**.
+6. **Create the first admin account.** Supabase → Authentication → Users →
+   **Add user** → *Create new user*, tick **Auto Confirm User**. Then sign in to
+   the app once with that account (so its profile row exists) and run:
+
+   ```
+   npm run user:role -- you@adspark.ph admin
+   ```
+
+   From then on, create everyone else from inside the app: **Users → Register**
+   (needs `SUPABASE_SERVICE_ROLE_KEY`, step 3). Only admins can register new
+   accounts, and roles/departments live in the app, not in Supabase.
 
    To show a person's name in the app instead of their email, run this in
    Supabase's **SQL Editor**:
@@ -277,6 +287,7 @@ Run these from the project's main folder (the one containing this file).
 | `npm run db:migrate` | Creates or updates the database tables. Safe to run again - it only applies what's new and never touches your data |
 | `npm run db:seed` | Loads example data to try the app with |
 | `npm run db:seed:remove` | Removes the example data; real data is left alone |
+| `npm run user:role -- <email> <admin\|head\|scanner>` | Sets an existing account's role directly in the database - for bootstrapping the first admin, or fixing one by hand |
 | `npm test` | Runs all the automated tests (no database or internet needed) |
 | `npm run build` | Builds the pages for production into `client/dist/` |
 
@@ -334,10 +345,8 @@ Things this version deliberately doesn't do yet:
   Making it reachable by the rest of the office - or online - needs a production
   setup that hasn't been built yet.
 - **No office-network restriction.** Unlike AKM, access isn't limited to the
-  office network; the password is the only protection. Worth adding before
-  putting it online.
-- **One kind of user.** Every IT staff account can do everything; there are no
-  roles.
+  office network; sign-in is the only protection. Worth adding before putting
+  it online.
 - **No password reset screen.** Admins reset passwords in Supabase.
 - **Laptops and mobiles only**, with core details - no specs, warranty, purchase
   cost, or QR codes (AKM already handles QR scanning).

@@ -8,14 +8,21 @@ import { applyMigrations } from '../../src/db/migrate.js'
  * errors behave exactly as they do on Supabase - no Docker needed.
  */
 export async function createTestDb() {
+  const db = await createBareTestDb()
+  await applyMigrations(db)
+  return db
+}
+
+/** A PGlite instance with no migrations applied at all - the roles migration
+ *  test needs to control exactly which migrations have run, to prove the
+ *  backfill turns every pre-existing profile into an admin. */
+export async function createBareTestDb() {
   const pg = await bootPglite()
-  const db = {
+  return {
     ...adapt(pg),
     transaction: (fn) => pg.transaction((tx) => fn(adapt(tx))),
     close: () => pg.close(),
   }
-  await applyMigrations(db)
-  return db
 }
 
 /** PGlite's results -> the node-postgres shape the app expects. */
@@ -41,4 +48,5 @@ async function bootPglite() {
 }
 
 export const emptyDb = (db) =>
-  db.exec('truncate table assignments, devices, employees, profiles cascade')
+  db.exec(
+    'truncate table scan_events, session_items, inventory_sessions, assignments, devices, employees, profiles, departments cascade')

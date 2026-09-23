@@ -13,6 +13,7 @@ describe('authentication', () => {
     ['GET', '/api/devices'], ['GET', '/api/employees'], ['GET', '/api/assignments'],
     ['POST', '/api/assignments'], ['GET', '/api/dashboard'], ['GET', '/api/export/assignments'],
     ['POST', '/api/import/devices'], ['GET', '/api/auth/me'],
+    ['GET', '/api/users'], ['GET', '/api/departments'], ['GET', '/api/sessions'],
   ])('%s %s without a token is a 401', async (method, url) => {
     const res = await (method === 'GET' ? t.anonymous.get(url) : t.anonymous.post(url))
     expect(res.status).toBe(401)

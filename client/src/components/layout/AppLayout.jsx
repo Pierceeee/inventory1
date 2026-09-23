@@ -12,7 +12,7 @@ export default function AppLayout() {
 
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Mobile-only bar: the sidebar is off-canvas below lg. */}
-        <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 lg:hidden">
+        <div className="flex items-center gap-3 border-b border-slate-200 bg-white px-4 py-3 print:hidden lg:hidden">
           <button
             type="button"
             onClick={() => setMenuOpen(true)}
@@ -22,7 +22,7 @@ export default function AppLayout() {
           <p className="text-sm font-semibold text-slate-900">Device Handout Tracker</p>
         </div>
 
-        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 lg:px-8 lg:py-7">
+        <main className="min-w-0 flex-1 px-4 py-6 sm:px-6 print:p-0 lg:px-8 lg:py-7">
           <Outlet />
         </main>
       </div>

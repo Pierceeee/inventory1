@@ -8,6 +8,7 @@
     "db:migrate": "node scripts/migrate.js",
     "db:seed": "node scripts/seed.js",
     "db:seed:remove": "node scripts/seed.js --remove",
+    "user:role": "node scripts/userRole.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },

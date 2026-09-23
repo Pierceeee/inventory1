@@ -93,9 +93,14 @@ export async function request(path, options) {
   }
 
   if (!response.ok) {
+    const code = payload?.error?.code ?? 'UNKNOWN'
+    // A deactivated account is done, wherever in the session it happens - not
+    // just at login. This must never be a 401 (that means "expired token"),
+    // so client.js's ordinary renew logic never sees it; end it explicitly.
+    if (response.status === 403 && code === 'ACCOUNT_DISABLED') endSession()
     throw new ApiError({
       status: response.status,
-      code: payload?.error?.code ?? 'UNKNOWN',
+      code,
       message: payload?.error?.message ?? '',
       details: payload?.error?.details ?? {},
     })

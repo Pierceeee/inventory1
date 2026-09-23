@@ -1,9 +1,11 @@
 // The api/ modules against the real server: the contract the screens rely on.
 import { db, refreshDb } from '../test/liveDb.js'
+import { signInAs } from '../test/signInAs.js'
 import { listDevices, getDevice, createDevice, updateDevice } from './devices.js'
 import { getEmployee, resignEmployee } from './employees.js'
 import { issueDevice, returnDevice, listAssignments } from './assignments.js'
 import { getDashboard } from './dashboard.js'
+import { getCurrentUser } from './auth.js'
 import { fetchWithAuth, SIGNED_OUT_EVENT } from './client.js'
 import { ApiError } from '../lib/errors.js'
 import { getSession, setSession } from '../lib/session.js'
@@ -221,5 +223,28 @@ describe('session renewal', () => {
 
     expect(results.every((r) => r.data)).toBe(true)
     expect(renewals).toHaveLength(1)
+  })
+})
+
+describe('roles and departments (Group 1)', () => {
+  test('getCurrentUser returns role and department', async () => {
+    const { data } = await getCurrentUser()
+    expect(data).toMatchObject({ email: 'allen@adspark.ph', role: 'admin' })
+    expect(data.department).toEqual(expect.objectContaining({ id: expect.any(String), name: expect.any(String) }))
+  })
+
+  test('a 403 is an ApiError FORBIDDEN and does not sign you out', async () => {
+    await signInAs('tess@adspark.ph') // scanner - no custody access
+    const signedOut = vi.fn()
+    window.addEventListener(SIGNED_OUT_EVENT, signedOut)
+
+    const error = await listDevices().catch((e) => e)
+    window.removeEventListener(SIGNED_OUT_EVENT, signedOut)
+
+    expect(error).toBeInstanceOf(ApiError)
+    expect(error.status).toBe(403)
+    expect(error.code).toBe('FORBIDDEN')
+    expect(getSession()).not.toBeNull()
+    expect(signedOut).not.toHaveBeenCalled()
   })
 })

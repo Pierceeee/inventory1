@@ -4,7 +4,10 @@
  * Refreshed before every test; call refreshDb() again after the UI changes
  * something you want to assert on.
  */
-export const db = { devices: [], employees: [], assignments: [] }
+export const db = {
+  devices: [], employees: [], assignments: [], departments: [], profiles: [], sessions: [], items: [],
+  scans: [],
+}
 
 let server = null
 

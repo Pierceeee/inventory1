@@ -1,13 +1,21 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router-dom'
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import App from './App.jsx'
 import { ToastProvider } from './components/ui/Toast.jsx'
 import { SessionProvider } from './hooks/useSession.jsx'
 import './index.css'
 
 const queryClient = new QueryClient({
+  // A 403 anywhere (a demotion, a department change, deactivation) means the
+  // sidebar and route guards may be stale - refetch /me so they catch up
+  // without waiting for its own 60s staleTime.
+  queryCache: new QueryCache({
+    onError: (error) => {
+      if (error?.status === 403) queryClient.invalidateQueries({ queryKey: ['me'] })
+    },
+  }),
   defaultOptions: { queries: { refetchOnWindowFocus: false, retry: 1 } },
 })
 

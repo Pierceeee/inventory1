@@ -26,7 +26,7 @@ try {
       console.log('No example data found - nothing to remove.')
     } else {
       console.log(`Removed example data: ${removed.devices} devices, ${removed.employees} employees, ` +
-        `${removed.handouts} handouts.`)
+        `${removed.handouts} handouts, ${removed.departments} departments.`)
       if (removed.yourHandouts > 0) {
         console.log(`Also removed ${removed.yourHandouts} handout(s) you recorded that involved ` +
           'an example device or employee.')
@@ -43,7 +43,7 @@ try {
       process.exitCode = 1
     } else {
       console.log(`Loaded example data: ${result.devices} devices, ${result.employees} employees, ` +
-        `${result.handouts} handouts.`)
+        `${result.handouts} handouts, ${result.departments} departments.`)
       console.log('Remove it before entering real data: npm run db:seed:remove')
     }
   }

@@ -26,6 +26,10 @@ export function readConfig(env = process.env, { needAuth = true } = {}) {
     databaseUrl: need('DATABASE_URL'),
     supabaseUrl: needAuth ? need('SUPABASE_URL') : env.SUPABASE_URL,
     supabaseKey: needAuth ? need('SUPABASE_ANON_KEY') : env.SUPABASE_ANON_KEY,
+    // Optional (R2): lets Register create sign-in accounts. Missing it does
+    // not stop the server starting - only POST /api/users needs it, and it
+    // then answers 503 REGISTRATION_UNAVAILABLE rather than failing to boot.
+    supabaseServiceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY?.trim() || undefined,
   }
 
   if (missing.length) {

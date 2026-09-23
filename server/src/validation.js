@@ -1,7 +1,7 @@
 import { z } from 'zod'
 import { invalid } from './lib/errors.js'
 import {
-  CONDITIONS, DEVICE_STATUSES, DEVICE_TYPES, OS_VALUES, RETURN_REASONS,
+  CONDITIONS, DEVICE_STATUSES, DEVICE_TYPES, OS_VALUES, RETURN_REASONS, ROLES, isUuid,
 } from './lib/values.js'
 
 // Same loose check the client uses, so the two never disagree about an address.
@@ -91,6 +91,36 @@ export const refresh = z.object({
   refresh_token: z.string({ error: 'Missing refresh token.' }).min(1, 'Missing refresh token.'),
 })
 
+// ---- departments ----
+
+const uuidRef = (message) => z.string({ error: message }).refine(isUuid, message)
+
+const departmentName = z.string({ error: 'Department name is required.' }).trim()
+  .min(1, 'Department name is required.').max(100, 'Keep the name under 100 characters.')
+
+export const departmentCreate = z.object({ name: departmentName })
+export const departmentUpdate = departmentCreate
+
+// ---- users ----
+
+export const userRegister = z.object({
+  full_name: z.string({ error: 'Full name is required.' }).trim()
+    .min(1, 'Full name is required.').max(200, 'Keep the name under 200 characters.'),
+  email: z.string({ error: 'Enter an email address.' }).trim().max(254)
+    .refine((v) => EMAIL_RE.test(v), 'Not a valid email address.'),
+  password: z.string({ error: 'Enter a password.' })
+    .min(8, 'Use at least 8 characters.').max(72, 'Keep the password under 72 characters.'),
+  role: z.enum(ROLES, { error: 'Choose admin, head or scanner.' }),
+  department_id: uuidRef('Choose a department.').nullish(),
+}).refine((u) => u.role === 'admin' || u.department_id,
+  { path: ['department_id'], message: 'Heads and scanners need a department.' })
+
+export const userUpdate = z.object({
+  role: z.enum(ROLES, { error: 'Choose admin, head or scanner.' }).optional(),
+  department_id: uuidRef('Choose a department.').nullable().optional(),
+  disabled: z.boolean({ error: 'disabled must be true or false.' }).optional(),
+})
+
 // ---- import ----
 
 export const importBatch = z.object({
@@ -120,3 +150,77 @@ export function date(value, field) {
   if (Number.isNaN(d.getTime())) throw invalid({ [field]: 'Not a valid date.' })
   return d
 }
+
+/** A query string that must be one of a fixed set, or 400 naming the field. */
+export function oneOf(value, allowed, field) {
+  const v = one(value)
+  if (v === undefined) return undefined
+  if (!allowed.includes(v)) throw invalid({ [field]: `Must be one of: ${allowed.join(', ')}.` })
+  return v
+}
+
+/** A whole-number query string within [min, max], or `fallback` when absent. */
+export function int(value, field, { min, max, fallback } = {}) {
+  const v = one(value)
+  if (v === undefined) return fallback
+  const n = Number(v)
+  if (!Number.isInteger(n) || (min !== undefined && n < min) || (max !== undefined && n > max)) {
+    throw invalid({ [field]: 'Not a valid number.' })
+  }
+  return n
+}
+
+// ---- inventory sessions ----
+
+export const SESSION_STATUS_FILTERS = ['active', 'completed', 'archived', 'all']
+export const ITEM_STATUS_FILTERS = ['scanned', 'pending']
+
+const sessionName = z.string({ error: 'Session name is required.' }).trim()
+  .min(1, 'Session name is required.').max(200, 'Keep the name under 200 characters.')
+const columnName = z.string({ error: 'Column names must be text.' }).trim()
+  .min(1).max(200, 'Keep column names under 200 characters.')
+// Cell values arrive already stringified by the client's spreadsheet parser,
+// but tolerate the JSON primitives a hand-built request might send too.
+const cell = z.union([z.string(), z.number(), z.boolean(), z.null()])
+// z.record() rebuilds its output with ordinary property assignment, which
+// silently drops a key literally named "__proto__" (assigning a string to
+// the inherited __proto__ setter is a no-op) - a column with that header
+// must still reach the service untouched. z.custom() passes the original
+// object through by reference instead of rebuilding it; the service already
+// coerces and length-checks every cell itself.
+const isPlainObject = (v) => typeof v === 'object' && v !== null && !Array.isArray(v)
+const dataRow = z.custom(isPlainObject, { error: "Each row's data must be an object." })
+
+export const sessionCreate = z.object({
+  name: sessionName,
+  department_id: uuidRef('Choose a department.').nullish(),
+})
+
+export const sessionUpdate = z.object({
+  name: sessionName.optional(),
+  // null resets to "show every column"; the DB caps at 100 (A4).
+  display_columns: z.array(columnName, { error: 'Must be a list.' }).max(100).nullable().optional(),
+})
+
+export const sessionImport = z.object({
+  columns: z.array(columnName, { error: 'columns must be a list.' }).max(100, 'At most 100 columns.'),
+  display_columns: z.array(columnName).max(100).nullable().optional(),
+  rows: z.array(z.object({
+    line: z.number().int().min(2).max(1_048_576).optional(),
+    item_code: cell.optional(),
+    data: dataRow.optional(),
+  }), { error: 'rows must be a list.' }).max(10_000, 'Import at most 10,000 rows at a time.'),
+  commit: z.boolean().optional(),
+})
+
+export const clearItems = z.object({ confirm: z.literal('CLEAR', { error: 'Type CLEAR to confirm.' }) })
+
+// ---- scanning ----
+
+// The final 1-128 length check happens after JS-side normalisation
+// (server/src/services/scans.js), which strips control characters a
+// handheld scanner or camera decode can include - this only keeps an
+// empty/absurdly long body from reaching that point.
+export const scanCreate = z.object({
+  code: z.string({ error: 'Enter an item code.' }).min(1, 'Enter an item code.').max(1000, 'That code is too long.'),
+})

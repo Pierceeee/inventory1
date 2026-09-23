@@ -22,7 +22,10 @@ describe('dashboard', () => {
   })
 
   test('an empty register reads as zeros for both types', async () => {
-    await t.db.exec('truncate table assignments, devices, employees, profiles cascade')
+    // Never truncate profiles/departments here - the signed-in user's role
+    // lives there, and re-creating it would default allen back to scanner,
+    // turning this very request 403 (G-2).
+    await t.db.exec('truncate table assignments, devices, employees cascade')
     const { body } = await t.api.get('/api/dashboard')
     expect(body.data.totals).toEqual({ devices: 0, issued: 0, available: 0, repair: 0, retired: 0, employees: 0 })
     expect(body.data.by_type).toEqual([

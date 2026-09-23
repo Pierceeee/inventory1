@@ -134,7 +134,11 @@ export async function importEmployees(db, rows, { commit = false } = {}) {
   return result
 }
 
-function reportLostRaces(result, candidates, insertedKeys, keyOf, field, label) {
+/** After an ON CONFLICT DO NOTHING insert, moves any row a concurrent write
+ *  beat us to from "created" into "skipped" - shared by every import that
+ *  commits its valid rows in one statement (devices, employees, session
+ *  items). */
+export function reportLostRaces(result, candidates, insertedKeys, keyOf, field, label) {
   for (const row of candidates) {
     if (insertedKeys.has(keyOf(row))) continue
     result.created -= 1

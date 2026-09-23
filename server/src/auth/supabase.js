@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { AppError } from '../lib/errors.js'
+import { AppError, conflict, invalid } from '../lib/errors.js'
 
 const CLIENT_OPTIONS = {
   auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
@@ -7,19 +7,29 @@ const CLIENT_OPTIONS = {
 
 /**
  * Supabase Auth behind the interface the API uses:
- *   signIn(email, password) -> session | null
- *   refresh(refreshToken)   -> session | null
- *   verify(accessToken)     -> user | null
+ *   signIn(email, password)          -> session | null
+ *   refresh(refreshToken)            -> session | null
+ *   verify(accessToken)              -> user | null
+ *   createUser({email,password,full_name}) -> { id, email, full_name }
+ *   deleteUser(id)                   -> void   (compensation only, best-effort)
  * where session = { token, refresh_token, expires_at, user } and
  *       user    = { id, email, full_name }.
  *
- * Tests swap in an in-memory implementation of the same three calls.
+ * Tests swap in an in-memory implementation of the same calls.
  */
-export function createSupabaseAuth({ url, key }) {
+export function createSupabaseAuth({ url, key, serviceRoleKey }) {
   // A GoTrue client remembers the last session it saw, and this one process
   // serves every user - so sign-in and refresh each get a throwaway client.
   const fresh = () => createClient(url, key, CLIENT_OPTIONS)
   const verifier = fresh()
+
+  // Separate client, created lazily and only used for auth.admin.* - never
+  // .from(), and the key never reaches the browser (no VITE_ prefix, C2).
+  let adminClient = null
+  const admin = () => {
+    adminClient ??= createClient(url, serviceRoleKey, CLIENT_OPTIONS)
+    return adminClient
+  }
 
   return {
     async signIn(email, password) {
@@ -49,7 +59,49 @@ export function createSupabaseAuth({ url, key }) {
         full_name: displayName(claims.user_metadata, claims.email),
       }
     },
+
+    async createUser({ email, password, full_name }) {
+      // The key is optional server config (R2): Register simply cannot work
+      // yet, which is a 503, never a crash at startup.
+      if (!serviceRoleKey) {
+        throw new AppError(503, 'REGISTRATION_UNAVAILABLE',
+          'Could not create the account right now. Check the server configuration.')
+      }
+      const { data, error } = await admin().auth.admin.createUser({
+        email, password, email_confirm: true, user_metadata: { full_name },
+      })
+      if (error) throw createUserFailure(error)
+      return { id: data.user.id, email: data.user.email ?? email, full_name }
+    },
+
+    /** Best-effort compensation when the profile insert after createUser
+     *  fails: never let a half-registered account become unrecoverable. */
+    async deleteUser(id) {
+      if (!serviceRoleKey) return
+      const { error } = await admin().auth.admin.deleteUser(id)
+      if (error) console.error('[auth] admin deleteUser failed:', error.message)
+    },
   }
+}
+
+/** Maps a failed admin.createUser call. Never 401 - a 401 would sign the
+ *  admin who is registering someone else out of their own session. */
+function createUserFailure(error) {
+  if (error.code === 'email_exists' || error.code === 'user_already_exists') {
+    return conflict('DUPLICATE_EMAIL', 'That email address is already registered.',
+      { email: 'Already registered.' })
+  }
+  if (error.code === 'weak_password') {
+    return invalid({ password: error.message })
+  }
+  if (error.status === 429) {
+    return new AppError(429, 'RATE_LIMITED', 'Too many attempts. Wait a minute and try again.')
+  }
+  // Any other 4xx (including 401/403 for a bad or missing key) or 5xx: the
+  // admin API itself is the problem, not what the operator typed.
+  console.error('[auth] admin createUser failed:', error.message)
+  return new AppError(503, 'REGISTRATION_UNAVAILABLE',
+    'Could not create the account right now. Check the server configuration.')
 }
 
 function toSession(session) {

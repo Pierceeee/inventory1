@@ -60,6 +60,12 @@ describe('check constraints', () => {
       `update employees set status = 'resigned' where id = $1`, [activeEmployee(t.fx).id]).catch((e) => e)
     expect(err.code).toBe('23514')
   })
+
+  test('a department name must not have leading or trailing whitespace', async () => {
+    const err = await t.db.query(`insert into departments (name) values (' Untrimmed ')`).catch((e) => e)
+    expect(err.code).toBe('23514')
+    expect(err.constraint).toBe('departments_name_trimmed')
+  })
 })
 
 describe('schema hygiene', () => {
@@ -81,7 +87,9 @@ describe('schema hygiene', () => {
     const { rows } = await t.db.query(
       `select relname, reloptions from pg_class
         where relnamespace = 'public'::regnamespace and relkind = 'v'`)
-    expect(rows.map((r) => r.relname).sort()).toEqual(['assignment_details', 'device_current_holder'])
+    expect(rows.map((r) => r.relname).sort()).toEqual([
+      'assignment_details', 'device_current_holder', 'inventory_session_summary', 'session_item_details',
+    ])
     for (const row of rows) expect(row.reloptions).toContain('security_invoker=true')
   })
 })

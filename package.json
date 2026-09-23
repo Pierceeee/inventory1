@@ -10,6 +10,7 @@
     "db:migrate": "npm run db:migrate --workspace server",
     "db:seed": "npm run db:seed --workspace server",
     "db:seed:remove": "npm run db:seed:remove --workspace server",
+    "user:role": "npm run user:role --workspace server --",
     "test": "npm run test --workspace server && npm run test --workspace client",
     "test:watch": "npm run test:watch --workspace client"
   },

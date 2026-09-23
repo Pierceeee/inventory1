@@ -5,6 +5,11 @@ const STYLES = {
   retired:   ['Retired',   'bg-slate-100 text-slate-600'],
   active:    ['Active',    'bg-ok-50 text-ok-700'],
   resigned:  ['Resigned',  'bg-slate-100 text-slate-600'],
+  disabled:  ['Disabled',  'bg-bad-50 text-bad-700'],
+  completed: ['Completed', 'bg-brand-50 text-brand-700'],
+  archived:  ['Archived',  'bg-slate-100 text-slate-600'],
+  scanned:   ['Scanned',   'bg-ok-50 text-ok-700'],
+  pending:   ['Pending',   'bg-warn-50 text-warn-700'],
 }
 
 export default function StatusBadge({ status }) {
