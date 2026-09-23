@@ -1,0 +1,12 @@
+{
+  "name": "inventory",
+  "private": true,
+  "type": "module",
+  "workspaces": ["client"],
+  "scripts": {
+    "dev": "npm run dev --workspace client",
+    "build": "npm run build --workspace client",
+    "test": "npm run test --workspace client",
+    "test:watch": "npm run test:watch --workspace client"
+  }
+}
