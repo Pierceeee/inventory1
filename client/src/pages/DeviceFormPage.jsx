@@ -1,4 +1,4 @@
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import DeviceForm from '../components/devices/DeviceForm.jsx'
 import ErrorBanner from '../components/ui/ErrorBanner.jsx'

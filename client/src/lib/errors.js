@@ -8,6 +8,11 @@ export class ApiError extends Error {
   }
 }
 
+/** A problem with a file the user chose, found before anything is sent -
+ *  shaped like an ApiError so ErrorBanner shows its own message instead
+ *  of the generic network fallback. */
+export const fileError = (message) => new ApiError({ status: 0, code: 'INVALID_FILE', message })
+
 // Fallbacks only. The server's own message is preferred because it names the
 // actual device and person, which a generic string cannot.
 const FALLBACKS = {

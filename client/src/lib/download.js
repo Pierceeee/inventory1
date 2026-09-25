@@ -25,7 +25,7 @@ const CONTROL_CHARS = /[\x00-\x1f\x7f]/g
 const FORBIDDEN_CHARS = /[\\/:*?"<>|]/g
 // security LOW - same reasoning as the server: bidi overrides / zero-width
 // characters can visually spoof a file name, so strip them here too.
-const BIDI_ZERO_WIDTH = /[​-‏‪-‮⁠-⁤⁦-⁩﻿]/g
+const BIDI_ZERO_WIDTH = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
 
 function safeName(name) {
   const cleaned = String(name ?? '')

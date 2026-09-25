@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import PageHeader from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import FilterChips from '../components/ui/FilterChips.jsx'
@@ -9,11 +9,8 @@ import RecordPreview from '../components/imports/RecordPreview.jsx'
 import { importDevices, importEmployees } from '../api/imports.js'
 import { parseSpreadsheet, readFileAsArrayBuffer } from '../lib/spreadsheet.js'
 import { mapDevices, mapEmployees } from '../lib/recordImport.js'
-import { ApiError } from '../lib/errors.js'
-
-// A local (never-sent-to-the-server) file problem, shaped like an ApiError so
-// ErrorBanner shows its own message instead of the generic network fallback.
-const localError = (message) => new ApiError({ status: 0, code: 'INVALID_FILE', message })
+import { fileError } from '../lib/errors.js'
+import { useStaleGuard } from '../hooks/useStaleGuard.js'
 
 const MAX_ROWS = 5000 // server/src/validation.js importBatch
 
@@ -100,43 +97,43 @@ export default function ImportPage() {
   const [committed, setCommitted] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
-  // Bumped by every reset, so a request still in flight for a file (or kind)
+  // Invalidated by every reset, so a request still in flight for a file (or kind)
   // the user has since replaced never lands on the new one.
-  const attempt = useRef(0)
+  const guard = useStaleGuard()
 
   const config = KINDS[kind]
   const count = (n) => `${n} ${config.noun[n === 1 ? 0 : 1]}`
 
   function reset() {
-    attempt.current += 1
+    guard.invalidate()
     setFileName(''); setMapped(null); setCheck(null); setCommitted(null); setError(null); setBusy(false)
   }
 
   async function send(rows, commit) {
-    const mine = attempt.current
+    const stillCurrent = guard.track()
     setBusy(true); setError(null)
     try {
       const { data } = await config.send(rows, commit)
-      if (mine !== attempt.current) return
+      if (!stillCurrent()) return
       if (commit) setCommitted(data)
       else setCheck(data)
     } catch (err) {
-      if (mine === attempt.current) setError(err)
+      if (stillCurrent()) setError(err)
     } finally {
-      if (mine === attempt.current) setBusy(false)
+      if (stillCurrent()) setBusy(false)
     }
   }
 
   async function handleFile(file) {
     reset()
-    const mine = attempt.current
+    const stillCurrent = guard.track()
     setFileName(file.name)
     setBusy(true)
     try {
       const buffer = await readFileAsArrayBuffer(file)
       const parsed = await parseSpreadsheet({ name: file.name, buffer })
-      if (mine !== attempt.current) return
-      const fail = (message) => { setError(localError(message)); setBusy(false) }
+      if (!stillCurrent()) return
+      const fail = (message) => { setError(fileError(message)); setBusy(false) }
       if (parsed.rows.length === 0) return fail('That file has no rows.')
       if (parsed.rows.length > MAX_ROWS) {
         return fail(`That file has ${parsed.rows.length.toLocaleString('en-US')} rows. Import at most 5,000 at a time.`)
@@ -146,7 +143,7 @@ export default function ImportPage() {
       setMapped(result)
       await send(result.rows, false)
     } catch (err) {
-      if (mine === attempt.current) { setError(err); setBusy(false) }
+      if (stillCurrent()) { setError(err); setBusy(false) }
     }
   }
 

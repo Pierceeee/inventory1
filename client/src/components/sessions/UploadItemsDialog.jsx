@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import Modal from '../ui/Modal.jsx'
 import Button from '../ui/Button.jsx'
 import ErrorBanner from '../ui/ErrorBanner.jsx'
@@ -8,11 +8,8 @@ import ImportPreview from '../imports/ImportPreview.jsx'
 import { useToast } from '../ui/Toast.jsx'
 import { buildImportPayload, parseSpreadsheet, readFileAsArrayBuffer } from '../../lib/spreadsheet.js'
 import { useImportItems } from '../../hooks/useInventorySessions.js'
-import { ApiError } from '../../lib/errors.js'
-
-// A local (never-sent-to-the-server) file problem, shaped like an ApiError so
-// ErrorBanner shows its own message instead of the generic network fallback.
-const localError = (message) => new ApiError({ status: 0, code: 'INVALID_FILE', message })
+import { fileError } from '../../lib/errors.js'
+import { useStaleGuard } from '../../hooks/useStaleGuard.js'
 
 const plural = (n) => `${n} item${n === 1 ? '' : 's'}`
 
@@ -31,12 +28,12 @@ export default function UploadItemsDialog({ session, open, onClose }) {
   const [busy, setBusy] = useState(false)
   const { notify } = useToast()
   const importItems = useImportItems()
-  // Bumped by every reset, so a dry run still in flight for a file the user
+  // Invalidated by every reset, so a dry run still in flight for a file the user
   // has since replaced (or closed) never lands on the new one.
-  const attempt = useRef(0)
+  const guard = useStaleGuard()
 
   function reset() {
-    attempt.current += 1
+    guard.invalidate()
     setFileName(''); setPayload(null); setCheck(null); setCommitted(null); setError(null); setBusy(false)
   }
 
@@ -50,50 +47,50 @@ export default function UploadItemsDialog({ session, open, onClose }) {
   })
 
   async function runCheck(built) {
-    const mine = attempt.current
+    const stillCurrent = guard.track()
     setBusy(true); setError(null)
     try {
       const data = await send(built, false)
-      if (mine === attempt.current) setCheck(data)
+      if (stillCurrent()) setCheck(data)
     } catch (err) {
-      if (mine === attempt.current) setError(err)
+      if (stillCurrent()) setError(err)
     } finally {
-      if (mine === attempt.current) setBusy(false)
+      if (stillCurrent()) setBusy(false)
     }
   }
 
   async function handleFile(file) {
     reset()
-    const mine = attempt.current
+    const stillCurrent = guard.track()
     setFileName(file.name)
     setBusy(true)
     try {
       const buffer = await readFileAsArrayBuffer(file)
       const parsed = await parseSpreadsheet({ name: file.name, buffer })
-      if (mine !== attempt.current) return
-      if (parsed.rows.length === 0) { setError(localError('That file has no rows.')); setBusy(false); return }
+      if (!stillCurrent()) return
+      if (parsed.rows.length === 0) { setError(fileError('That file has no rows.')); setBusy(false); return }
       const built = buildImportPayload(parsed)
-      if (built.error) { setError(localError(built.error)); setBusy(false); return }
+      if (built.error) { setError(fileError(built.error)); setBusy(false); return }
       setPayload(built)
       await runCheck(built)
     } catch (err) {
-      if (mine === attempt.current) { setError(err); setBusy(false) }
+      if (stillCurrent()) { setError(err); setBusy(false) }
     }
   }
 
   async function handleImport() {
-    const mine = attempt.current
+    const stillCurrent = guard.track()
     setBusy(true); setError(null)
     try {
       const data = await send(payload, true)
       notify(`Added ${plural(data.created)} to ${session.name}.`, {
         detail: data.skipped > 0 ? `${data.skipped} skipped.` : undefined,
       })
-      if (mine === attempt.current) setCommitted(data)
+      if (stillCurrent()) setCommitted(data)
     } catch (err) {
-      if (mine === attempt.current) setError(err)
+      if (stillCurrent()) setError(err)
     } finally {
-      if (mine === attempt.current) setBusy(false)
+      if (stillCurrent()) setBusy(false)
     }
   }
 

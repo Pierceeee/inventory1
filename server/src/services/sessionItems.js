@@ -25,7 +25,7 @@ const dedupe = (list) => [...new Set(list)]
  *  (upload order is exposed only as list order, never as a number the
  *  client could rely on), and derive a plain scanned/pending status. */
 export function toItem(row) {
-  const { seq, ...rest } = row
+  const { seq: _seq, ...rest } = row
   return { ...rest, status: row.scanned_at ? 'scanned' : 'pending' }
 }
 

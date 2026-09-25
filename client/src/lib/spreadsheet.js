@@ -30,6 +30,12 @@ function hintScore(header) {
   return score && SUPERSEDED.test(header) ? score - 0.5 : score
 }
 
+// The server refuses longer item codes (services/sessionItems.js).
+const MAX_ITEM_CODE_LENGTH = 128
+// A label-like column still qualifies with gaps, as long as at least half
+// its rows are filled in with different values.
+const MIN_HINTED_COVERAGE = 0.5
+
 /** A cell that says "nothing here" in words - N/A, TBD, none, a dash. */
 export const isPlaceholder = (value) => /^(n\/?a|none|nil|null|tbd|-+|—|\?)$/i.test(String(value ?? '').trim())
 
@@ -44,7 +50,7 @@ function columnStats(rows, header) {
     const value = String(values[header] ?? '').trim()
     if (!value || isPlaceholder(value)) continue
     filled += 1
-    if (value.length > 128) fits = false
+    if (value.length > MAX_ITEM_CODE_LENGTH) fits = false
     seen.add(value.toLowerCase())
   }
   return {
@@ -77,7 +83,7 @@ export function pickItemCodeColumn({ headers, rows }) {
     const hint = hintScore(header)
     const tier = isItemCodeHeader(header) ? 4
       : hint > 0 && usable ? 3
-      : hint > 0 && coverage >= 0.5 ? 2
+      : hint > 0 && coverage >= MIN_HINTED_COVERAGE ? 2
       : usable ? 1
       : 0
     const rank = tier === 0

@@ -126,6 +126,17 @@ export function mapDevices(parsed) {
   const tag = pickItemCodeColumn(parsed)
   if (!tag) return { error: 'This file has no columns to import.' }
 
+  const { sources, extras } = deviceSources(headers, tag)
+  const typeSignals = phoneSignals(headers, tag)
+  const typeDefault = typeSignals.length > 0 ? 'mobile' : 'laptop'
+  const rows = parsed.rows.map((row) => mapDeviceRow(row, { headers, sources, extras, typeDefault }))
+
+  return { rows, sources, extras, typeDefault, typeSignals }
+}
+
+/** Which header fills each device field (null = none), claiming each header
+ *  at most once, and the headers left over for Notes. */
+function deviceSources(headers, tag) {
   const taken = new Set([tag])
   const sources = { asset_tag: tag }
   for (const [field, synonyms] of Object.entries(DEVICE_COLUMNS)) {
@@ -133,45 +144,48 @@ export function mapDevices(parsed) {
     if (sources[field]) taken.add(sources[field])
   }
   const extras = headers.filter((h) => !taken.has(h) && !isReservedColumn(h))
-  const typeSignals = headers.filter((h) =>
-    PHONE_COLUMNS.test(squash(h)) || (h === tag && PHONE_ID_COLUMNS.test(squash(h))))
-  const typeDefault = typeSignals.length > 0 ? 'mobile' : 'laptop'
+  return { sources, extras }
+}
 
-  const rows = parsed.rows.map(({ line, values }) => {
-    const cell = (h) => cellOf(values, h)
-    const model = cell(sources.model)
-    const osRaw = cell(sources.os)
-    const os = normaliseOs(osRaw)
-    const brand = cell(sources.brand) || guessBrand(model)
-    const guessType = () => {
-      const text = `${brand} ${model}`
-      if (LAPTOP_MODELS.test(text)) return 'laptop'
-      if (os === 'ios' || os === 'android' || MOBILE_MODELS.test(text)) return 'mobile'
-      return typeDefault
-    }
+/** Headers that only a phone register has (a phone number counts only as
+ *  the column identifying each device). */
+const phoneSignals = (headers, tag) => headers.filter((h) =>
+  PHONE_COLUMNS.test(squash(h)) || (h === tag && PHONE_ID_COLUMNS.test(squash(h))))
 
-    const notes = []
-    if (cell(sources.notes)) notes.push(cell(sources.notes))
-    for (const h of headers) {
-      const value = cell(h)
-      if (!value) continue
-      if (h === sources.os && os !== value.toLowerCase()) notes.push(`${h}: ${value}`)
-      else if (extras.includes(h)) notes.push(`${h}: ${value}`)
-    }
+/** Type for a row with no Type cell: a laptop line, then a phone or tablet
+ *  by OS or model, then the sheet's default. */
+function guessDeviceType({ brand, model, os, fallback }) {
+  const text = `${brand} ${model}`
+  if (LAPTOP_MODELS.test(text)) return 'laptop'
+  if (os === 'ios' || os === 'android' || MOBILE_MODELS.test(text)) return 'mobile'
+  return fallback
+}
 
-    return {
-      line,
-      asset_tag: cell(tag),
-      type: readType(cell(sources.type), guessType),
-      brand,
-      model,
-      serial_number: cell(sources.serial_number),
-      os,
-      notes: notes.join('\n'),
-    }
-  })
+/** The Notes column first, then "Header: value" for every column no field
+ *  took - and the OS as written when the os field could not hold it. */
+function deviceNotes({ headers, cell, sources, extras, os }) {
+  const kept = headers
+    .map((h) => [h, cell(h)])
+    .filter(([h, value]) => value && ((h === sources.os && os !== value.toLowerCase()) || extras.includes(h)))
+    .map(([h, value]) => `${h}: ${value}`)
+  return [cell(sources.notes), ...kept].filter(Boolean).join('\n')
+}
 
-  return { rows, sources, extras, typeDefault, typeSignals }
+function mapDeviceRow({ line, values }, { headers, sources, extras, typeDefault }) {
+  const cell = (h) => cellOf(values, h)
+  const model = cell(sources.model)
+  const os = normaliseOs(cell(sources.os))
+  const brand = cell(sources.brand) || guessBrand(model)
+  return {
+    line,
+    asset_tag: cell(sources.asset_tag),
+    type: readType(cell(sources.type), () => guessDeviceType({ brand, model, os, fallback: typeDefault })),
+    brand,
+    model,
+    serial_number: cell(sources.serial_number),
+    os,
+    notes: deviceNotes({ headers, cell, sources, extras, os }),
+  }
 }
 
 const EMPLOYEE_COLUMNS = {

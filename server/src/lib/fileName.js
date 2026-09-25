@@ -16,7 +16,7 @@ const FORBIDDEN_CHARS = /[\\/:*?"<>|]/g
 // alongside ordinary control characters. Covers explicit formatting
 // characters (U+200B-U+200F, U+202A-U+202E), word joiner/invisible math
 // operators (U+2060-U+2064), isolates (U+2066-U+2069) and the BOM (U+FEFF).
-const BIDI_ZERO_WIDTH = /[​-‏‪-‮⁠-⁤⁦-⁩﻿]/g
+const BIDI_ZERO_WIDTH = /[\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
 
 /** A session's `name` -> safe to embed in a file name: control characters,
  *  bidi/zero-width characters, quotes and path/reserved characters stripped,
