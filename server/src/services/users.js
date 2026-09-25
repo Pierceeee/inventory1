@@ -57,8 +57,14 @@ export async function registerUser(db, auth, input) {
  * transaction that locks every enabled admin row (R3), so two concurrent
  * requests can never both demote/disable the last one - whichever commits
  * second sees the other's change and refuses.
+ *
+ * `adminEmails` mirrors the ADMIN_EMAILS server setting (README "Locked
+ * out"): an account whose email is listed there is re-promoted to admin on
+ * its next request regardless of what is in the database (loadProfile), so
+ * demoting it here would only be undone a moment later - refuse instead of
+ * silently doing nothing.
  */
-export async function updateUser(db, id, patch, actorId) {
+export async function updateUser(db, id, patch, actorId, adminEmails = []) {
   if (!isUuid(id)) throw notFound('User')
   if (patch.department_id && !(await departmentExists(db, patch.department_id))) {
     throw invalid({ department_id: 'No such department.' })
@@ -81,6 +87,13 @@ export async function updateUser(db, id, patch, actorId) {
 
     if (patch.disabled === true && actorId === id) {
       throw conflict('CANNOT_DISABLE_SELF', 'You cannot deactivate your own account.')
+    }
+
+    const demotingConfiguredAdmin = patch.role !== undefined && patch.role !== 'admin' &&
+      isConfiguredAdmin(current.email, adminEmails)
+    if (demotingConfiguredAdmin) {
+      throw conflict('CONFIGURED_ADMIN',
+        'This account is an admin because it is listed in ADMIN_EMAILS on the server.')
     }
 
     const demotingLastAdmin = patch.role !== undefined && patch.role !== 'admin' && isTheLastAdmin
@@ -116,6 +129,9 @@ export async function updateUser(db, id, patch, actorId) {
 
 /** Postgres foreign_key_violation on profiles.department_id. */
 const isMissingDepartment = (err) => err?.code === '23503'
+
+const isConfiguredAdmin = (email, adminEmails) =>
+  Boolean(email) && adminEmails.some((listed) => listed.toLowerCase() === email.toLowerCase())
 
 /** For the `user:role` bootstrap script. Not exposed over HTTP: it connects
  *  to DATABASE_URL directly. Promotes every profile with that email - there

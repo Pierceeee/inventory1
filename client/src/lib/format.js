@@ -21,13 +21,6 @@ export function fromLocalInput(value) {
   return Number.isNaN(d.getTime()) ? '' : d.toISOString()
 }
 
-/** UTC ISO -> "YYYY-MM-DD" in local time, for <input type="date">. */
-export function toDateInput(iso) {
-  const d = parse(iso)
-  if (!d) return ''
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
-}
-
 const DATE_FMT = new Intl.DateTimeFormat('en-GB', {
   day: '2-digit', month: 'short', year: 'numeric',
 })

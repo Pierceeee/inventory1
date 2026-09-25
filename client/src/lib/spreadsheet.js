@@ -15,7 +15,85 @@ export const EXPORT_COLUMNS = { status: 'Scan Status', at: 'Scanned At', by: 'Sc
 const RESERVED = new Set(['scanstatus', 'scannedat', 'scannedby'])
 export const isReservedColumn = (h) => RESERVED.has(normaliseHeader(h))
 
-export const findItemCodeColumn = (headers) => headers.find((h) => isItemCodeHeader(h))
+// Header names that suggest "this is what's on the label", strongest first.
+// Whole words of the raw header, so "STAGE" is not a tag. A superseded
+// column ("OLD ASSET TAG") scores just under its current twin.
+const CODE_HINTS = [
+  [/\b(asset\s*(tag|id|no|number|code)|tag|barcode|qr\s*code|imei)\b/i, 3],
+  [/\b(code|sku|msisdn)\b|\b(mobile|phone|cell|sim)\s*(number|no)\b/i, 2],
+  [/\bserial\b/i, 1],
+]
+const SUPERSEDED = /\b(old|previous|prev|former|legacy)\b/i
+
+function hintScore(header) {
+  const score = CODE_HINTS.find(([pattern]) => pattern.test(header))?.[1] ?? 0
+  return score && SUPERSEDED.test(header) ? score - 0.5 : score
+}
+
+/** A cell that says "nothing here" in words - N/A, TBD, none, a dash. */
+export const isPlaceholder = (value) => /^(n\/?a|none|nil|null|tbd|-+|—|\?)$/i.test(String(value ?? '').trim())
+
+/** usable: every row has a value, none repeats (ignoring case, like the
+ *  database's unique index) and each fits the server's 128-char limit.
+ *  coverage: distinct values / rows. Placeholders count as blank. */
+function columnStats(rows, header) {
+  const seen = new Set()
+  let filled = 0
+  let fits = true
+  for (const { values } of rows) {
+    const value = String(values[header] ?? '').trim()
+    if (!value || isPlaceholder(value)) continue
+    filled += 1
+    if (value.length > 128) fits = false
+    seen.add(value.toLowerCase())
+  }
+  return {
+    usable: fits && filled === rows.length && seen.size === rows.length,
+    coverage: rows.length ? seen.size / rows.length : 0,
+  }
+}
+
+/**
+ * Which column's values become the item codes - decided here, never asked
+ * of the user. Tiers, best first:
+ *   4 a header named "Item Code" (any spelling) - the user said so
+ *   3 a label-like header (asset tag, barcode, code, serial) that is filled
+ *     in and unique on every row
+ *   2 a label-like header that is at least half filled in (the dry run
+ *     reports the gaps)
+ *   1 any other column that is filled in and unique
+ *   0 anything else
+ * Ties go to the filled-in unique one, then the stronger name, then more
+ * distinct values, then whichever comes first in the file - except in tier
+ * 0, where more distinct values come before the name (a "Serial Number"
+ * that says N/A on most rows is no identifier). Reserved export columns are
+ * never picked; undefined only when nothing else is left.
+ */
+export function pickItemCodeColumn({ headers, rows }) {
+  let best
+  headers.forEach((header, index) => {
+    if (isReservedColumn(header)) return
+    const { usable, coverage } = columnStats(rows, header)
+    const hint = hintScore(header)
+    const tier = isItemCodeHeader(header) ? 4
+      : hint > 0 && usable ? 3
+      : hint > 0 && coverage >= 0.5 ? 2
+      : usable ? 1
+      : 0
+    const rank = tier === 0
+      ? [tier, usable ? 1 : 0, coverage, hint, -index]
+      : [tier, usable ? 1 : 0, hint, coverage, -index]
+    if (!best || isBetter(rank, best.rank)) best = { header, rank }
+  })
+  return best?.header
+}
+
+function isBetter(a, b) {
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return a[i] > b[i]
+  }
+  return false
+}
 
 export function readFileAsArrayBuffer(file) {
   return new Promise((resolve, reject) => {
@@ -114,19 +192,16 @@ function buildParsed(table, sheetName, startRow) {
 
 /**
  * `parseSpreadsheet`'s output -> the shape POST /api/sessions/:id/import
- * expects. Returns `{ error }` when no single item-code column can be found.
- * The item-code column and any reserved export header (Scan Status, Scanned
- * At, Scanned By) never become part of `data` or `columns`.
+ * expects. The item code comes from `pickItemCodeColumn` - a real asset
+ * register rarely has a column literally named "Item Code" (e.g. "NEW ASSET
+ * TAG"), and the upload dialog does not ask. That column and any reserved
+ * export header (Scan Status, Scanned At, Scanned By) never become part of
+ * `data` or `columns`; every other column is kept as it is in the file.
+ * `{ error }` only when the file has no usable column at all.
  */
-export function buildImportPayload(parsed, displayColumns) {
-  const codeColumns = parsed.headers.filter((h) => isItemCodeHeader(h))
-  if (codeColumns.length === 0) {
-    return { error: 'No item code column found. Add a column named "Item Code" (or similar).' }
-  }
-  if (codeColumns.length > 1) {
-    return { error: 'More than one column looks like an item code column. Keep only one.' }
-  }
-  const codeColumn = codeColumns[0]
+export function buildImportPayload(parsed, { displayColumns } = {}) {
+  const codeColumn = pickItemCodeColumn(parsed)
+  if (!codeColumn) return { error: 'This file has no columns to import.' }
 
   const reserved = []
   const columns = []

@@ -1,10 +1,15 @@
 export const DEVICE_TYPES = ['laptop', 'mobile']
 export const DEVICE_STATUSES = ['available', 'repair', 'retired']
 export const OS_VALUES = ['macos', 'windows', 'ios', 'android']
-export const EMPLOYEE_STATUSES = ['active', 'resigned']
 export const RETURN_REASONS = ['resignation', 'swap', 'repair', 'lost', 'other']
 export const CONDITIONS = ['good', 'fair', 'damaged']
 export const ROLES = ['admin', 'head', 'scanner']
+// security MEDIUM (Group 5 review): an unbounded session (10,000 rows per
+// import, but unlimited imports) makes a single session's export an
+// unbounded amount of synchronous work on the event loop. Enforced in the
+// import commit transaction (services/sessionItems.js), under the session's
+// row lock, so two concurrent imports cannot both squeak in under the cap.
+export const SESSION_ITEM_CAP = 50_000
 // Custody (devices, employees, assignments, import, reports) is Admin + Head;
 // scanners get none of it (D2).
 export const CUSTODY_ROLES = ['admin', 'head']

@@ -17,6 +17,32 @@ export const normaliseCode = (raw) => String(raw ?? '').replace(CONTROL_CHARS, '
 const detailOf = (tx, id) =>
   tx.query('select * from session_item_details where id = $1', [id]).then((r) => r.rows[0])
 
+/**
+ * db HIGH (real Postgres only - PGlite serialises writers, so it cannot
+ * reproduce this): every transaction that touches BOTH a session row and its
+ * session_items rows must lock the SESSION first, items second - the same
+ * order everywhere, or two such transactions can deadlock (40P01). The
+ * BEFORE INSERT/UPDATE trigger on session_items (assert_session_active,
+ * supabase/migrations/20260925000100) already takes `for share` on the
+ * session row on every scan/undo/edit - so without this, a scan that has
+ * already locked the item row (via its own UPDATE) and is now waiting on
+ * that trigger's `for share` can deadlock against clearSessionItems/
+ * deleteItem/the import commit/deleteSession, which all lock the session
+ * `for update` FIRST and only then reach for the same item row.
+ *
+ * The fix: take the session's `for share` lock explicitly, as the very
+ * first statement of THIS transaction, before touching session_items at
+ * all. Every writer now agrees on session-then-items, so the two can never
+ * wait on each other. `for share` costs nothing against other concurrent
+ * scans (many readers can hold it at once) - it only ever waits behind a
+ * `for update` writer, exactly like the trigger's own lock would have.
+ *
+ * Exported so services/items.js's updateItem - the third write that used to
+ * take the item lock first - can open with the same lock, same order.
+ */
+export const lockSessionForShare = (tx, sessionId) =>
+  tx.query('select 1 from inventory_sessions where id = $1 for share', [sessionId])
+
 /** The one statement the scan can succeed with: claims the item only if it
  *  is still pending, atomically - the database (not app logic) is what
  *  guarantees exactly one of two concurrent scans of the same code wins. */
@@ -43,6 +69,10 @@ export async function scanItem(db, session, rawCode, actor) {
 
   try {
     return await db.transaction(async (tx) => {
+      // Global lock order (see lockSessionForShare above) - must be the
+      // first statement in this transaction.
+      await lockSessionForShare(tx, session.id)
+
       let item = await tryClaim(tx, session.id, code, actor.id)
       let outcome = item ? 'scanned' : undefined
 
@@ -93,6 +123,10 @@ export async function undoScan(db, session, itemId, actor) {
 
   try {
     return await db.transaction(async (tx) => {
+      // Global lock order (see lockSessionForShare above) - must be the
+      // first statement in this transaction.
+      await lockSessionForShare(tx, session.id)
+
       const { rows: [row] } = await tx.query(
         `update session_items set scanned_at = null, scanned_by = null
           where id = $1 and session_id = $2 and scanned_at is not null

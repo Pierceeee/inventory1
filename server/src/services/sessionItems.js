@@ -1,7 +1,23 @@
-import { invalid } from '../lib/errors.js'
+import { conflict, invalid } from '../lib/errors.js'
+import { SESSION_ITEM_CAP } from '../lib/values.js'
 import { isItemCodeHeader, isReservedColumn } from '../lib/columns.js'
 import { isSessionClosedError, sessionNotActive } from './inventorySessions.js'
 import { reportLostRaces } from './imports.js'
+
+/** security MEDIUM: a session's size was otherwise unbounded (10,000 rows
+ *  per import, but unlimited imports) - and export builds the whole xlsx
+ *  synchronously on the event loop, so a session's total size is a server
+ *  cost, not just the caller's own data. `existingCount` must be a FRESH
+ *  count for a commit (read under the session's row lock, so two concurrent
+ *  imports cannot both squeak in under the cap); the dry run uses the
+ *  session's already-loaded `item_count`, which is good enough for a preview. */
+function assertWithinItemCap(session, existingCount, incomingCount) {
+  if (existingCount + incomingCount <= SESSION_ITEM_CAP) return
+  throw conflict('SESSION_FULL',
+    `${session.name} already has ${existingCount.toLocaleString()} items. Adding ` +
+    `${incomingCount.toLocaleString()} more would pass the ${SESSION_ITEM_CAP.toLocaleString()}-item limit per session.`,
+    { current: existingCount, cap: SESSION_ITEM_CAP, incoming: incomingCount })
+}
 
 const dedupe = (list) => [...new Set(list)]
 
@@ -15,8 +31,10 @@ export function toItem(row) {
 
 /** Escapes `\`, `%` and `_` so a search term is matched literally, not as a
  *  LIKE pattern - an item code containing a real underscore must not act as
- *  a single-character wildcard (db M1). Paired with `escape '\'` below. */
-const escapeLike = (value) => value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
+ *  a single-character wildcard (db M1). Paired with `escape '\'` below.
+ *  Exported so the Inventory page's cross-session search (services/items.js)
+ *  uses the exact same escaping. */
+export const escapeLike = (value) => value.replace(/[\\%_]/g, (ch) => `\\${ch}`)
 
 /**
  * Filtering, search and pagination all run server-side (a session can hold
@@ -155,6 +173,7 @@ export async function importSessionItems(db, session, input) {
   result.created = candidates.length
 
   if (!input.commit) {
+    assertWithinItemCap(session, session.item_count, candidates.length)
     const { merged, resolved } = mergeColumns(session.columns, incoming)
     const display = resolveDisplayColumns(session.display_columns, session.columns, input, merged, incoming, resolved)
     return { created: result.created, skipped: result.skipped, errors: result.errors, columns: merged, display_columns: display }
@@ -167,9 +186,18 @@ export async function importSessionItems(db, session, input) {
   }
 
   return db.transaction(async (tx) => {
+    // Session locked FOR UPDATE first, items inserted second - the right
+    // global lock order (services/scans.js's comment on lockSessionForShare).
     const { rows: [locked] } = await tx.query(
       'select status, columns, display_columns from inventory_sessions where id = $1 for update', [session.id])
     if (!locked || locked.status !== 'active') throw sessionNotActive(session)
+
+    // Fresh count under the lock (not session.item_count, which may be
+    // stale by the time this transaction got the lock) - the cap must hold
+    // even when two imports race to commit at once.
+    const { rows: [{ n: currentCount }] } = await tx.query(
+      'select count(*)::int as n from session_items where session_id = $1', [session.id])
+    assertWithinItemCap(session, currentCount, candidates.length)
 
     // Fresh merge against the locked row's CURRENT columns (db H1) - not the
     // `session` object the router read before this transaction started.
@@ -213,7 +241,9 @@ export async function importSessionItems(db, session, input) {
 
 /** `actor` is who clicked Clear Items (G3) - logged once per item in the
  *  same transaction as the delete, so the scan history keeps a record of
- *  everything Clear removed. One INSERT ... SELECT, not N inserts. */
+ *  everything Clear removed. One INSERT ... SELECT, not N inserts. Already
+ *  in the right global lock order (session `for update` first, items second
+ *  - see services/scans.js's comment on lockSessionForShare). */
 export async function clearSessionItems(db, session, actor) {
   return db.transaction(async (tx) => {
     const { rows: [locked] } = await tx.query(

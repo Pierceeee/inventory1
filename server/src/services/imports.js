@@ -6,6 +6,20 @@ const EMAIL_RE = /^\S+@\S+\.\S+$/
 const str = (value) => String(value ?? '').trim()
 const key = (value) => str(value).toLowerCase()
 
+/** The row's own spreadsheet line when the client sent one (it drops blank
+ *  rows but keeps real line numbers), else its position after the header. */
+const lineOf = (row, index) => (Number.isInteger(row.line) && row.line > 1 ? row.line : index + 2)
+
+// The device form's limits (validation.js deviceCreate), so an imported
+// device can always be saved again from its edit page.
+const DEVICE_LIMITS = [['brand', 200], ['model', 200], ['serial_number', 200], ['notes', 5000]]
+const LIMIT_LABELS = { brand: 'brand', model: 'model', serial_number: 'the serial number', notes: 'notes' }
+
+/** Why a key cannot be imported again - already saved, or a repeat within
+ *  this file (the sheet to fix, not the register) - or null when it is new. */
+const whereSeen = (k, saved, inFile) =>
+  (saved.has(k) ? 'already exists' : inFile.has(k) ? 'appears earlier in this file' : null)
+
 /**
  * CSV import with a dry run (§6, BE-6). Rows arrive already column-mapped by
  * the client. Every row is checked and bad ones are reported by spreadsheet
@@ -23,10 +37,12 @@ export async function importDevices(db, rows, { commit = false } = {}) {
   ])
   const tags = new Set(tagRows.map((r) => r.k))
   const serials = new Set(serialRows.map((r) => r.k))
+  const fileTags = new Set()
+  const fileSerials = new Set()
   const valid = []
 
   rows.forEach((row, index) => {
-    const line = index + 2
+    const line = lineOf(row, index)
     const assetTag = str(row.asset_tag)
     const type = key(row.type)
     const serial = str(row.serial_number)
@@ -43,20 +59,28 @@ export async function importDevices(db, rows, { commit = false } = {}) {
       result.errors.push({ line, field: 'type', message: 'Type must be laptop or mobile.' })
       return
     }
-    if (tags.has(assetTag.toLowerCase())) {
-      result.skipped += 1
-      result.errors.push({ line, field: 'asset_tag', message: `${assetTag} already exists - skipped.` })
+    const tooLong = DEVICE_LIMITS.find(([field, max]) => str(row[field]).length > max)
+    if (tooLong) {
+      const [field, max] = tooLong
+      result.errors.push({ line, field, message: `Keep ${LIMIT_LABELS[field]} under ${max.toLocaleString('en-US')} characters.` })
       return
     }
-    if (serial && serials.has(serial.toLowerCase())) {
+    const tagSeen = whereSeen(assetTag.toLowerCase(), tags, fileTags)
+    if (tagSeen) {
+      result.skipped += 1
+      result.errors.push({ line, field: 'asset_tag', message: `${assetTag} ${tagSeen} - skipped.` })
+      return
+    }
+    const serialSeen = serial && whereSeen(serial.toLowerCase(), serials, fileSerials)
+    if (serialSeen) {
       result.skipped += 1
       result.errors.push({ line, field: 'serial_number',
-        message: `Serial number ${serial} already exists - skipped.` })
+        message: `Serial number ${serial} ${serialSeen} - skipped.` })
       return
     }
 
-    tags.add(assetTag.toLowerCase())
-    if (serial) serials.add(serial.toLowerCase())
+    fileTags.add(assetTag.toLowerCase())
+    if (serial) fileSerials.add(serial.toLowerCase())
     valid.push({
       line,
       asset_tag: assetTag,
@@ -91,10 +115,11 @@ export async function importEmployees(db, rows, { commit = false } = {}) {
   const { rows: emailRows } = await db.query(
     'select lower(email) as k from employees where email is not null')
   const emails = new Set(emailRows.map((r) => r.k))
+  const fileEmails = new Set()
   const valid = []
 
   rows.forEach((row, index) => {
-    const line = index + 2
+    const line = lineOf(row, index)
     const fullName = str(row.full_name)
     const email = str(row.email)
 
@@ -106,13 +131,14 @@ export async function importEmployees(db, rows, { commit = false } = {}) {
       result.errors.push({ line, field: 'email', message: 'Not a valid email address.' })
       return
     }
-    if (email && emails.has(email.toLowerCase())) {
+    const emailSeen = email && whereSeen(email.toLowerCase(), emails, fileEmails)
+    if (emailSeen) {
       result.skipped += 1
-      result.errors.push({ line, field: 'email', message: `${email} already exists - skipped.` })
+      result.errors.push({ line, field: 'email', message: `${email} ${emailSeen} - skipped.` })
       return
     }
 
-    if (email) emails.add(email.toLowerCase())
+    if (email) fileEmails.add(email.toLowerCase())
     valid.push({ line, full_name: fullName, email: email || null, department: str(row.department) || null })
   })
 

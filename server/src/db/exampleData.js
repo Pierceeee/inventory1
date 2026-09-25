@@ -438,7 +438,7 @@ export async function removeExampleData(db) {
     )
     const devices = await tx.query('delete from devices where id = any($1::uuid[])', [idsOf(data.devices)])
     const employees = await tx.query('delete from employees where id = any($1::uuid[])', [idsOf(data.employees)])
-    await tx.query(
+    const profiles = await tx.query(
       `delete from profiles p
         where p.id = any($1::uuid[])
           and not exists (select 1 from assignments a where a.issued_by = p.id or a.returned_by = p.id)
@@ -460,6 +460,7 @@ export async function removeExampleData(db) {
       employees: employees.rowCount,
       handouts: handouts.filter((h) => exampleHandouts.has(h.id)).length,
       yourHandouts: handouts.filter((h) => !exampleHandouts.has(h.id)).length,
+      profiles: profiles.rowCount,
       departments: departments.rowCount,
       sessions: sessions.rowCount,
     }

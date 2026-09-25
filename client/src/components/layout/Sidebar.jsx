@@ -10,6 +10,10 @@ const SECTIONS = [
     links: [
       { to: '/', label: 'Dashboard', end: true, roles: CUSTODY_ROLES },
       { to: '/sessions', label: 'Sessions', roles: ROLES },
+      { to: '/inventory', label: 'Inventory', roles: CUSTODY_ROLES },
+      // Admin only (R1): heads may read their own department's archived
+      // sessions via the API, but the Archive PAGE itself stays admin-only.
+      { to: '/archive', label: 'Archive', roles: ['admin'] },
     ],
   },
   {
@@ -30,6 +34,11 @@ const SECTIONS = [
     ],
   },
 ]
+
+// Heads and scanners are stuck without a department, so say so plainly.
+// Admins work across every department and usually have none - no label.
+const departmentLabel = (role, profile) =>
+  profile?.department?.name ?? (role === 'admin' ? null : 'No department')
 
 export default function Sidebar({ open, onClose }) {
   const { user, profile, role, profileLoading, signOut } = useSession()
@@ -103,11 +112,16 @@ export default function Sidebar({ open, onClose }) {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-slate-900">{user.full_name}</p>
-                <p className="truncate text-xs text-slate-500">
-                  {role
-                    ? [ROLE_LABELS[role], profile?.department?.name].filter(Boolean).join(' · ')
-                    : user.email}
-                </p>
+                <p className="truncate text-xs text-slate-500">{user.email}</p>
+                {/* Who the app thinks you are: role + department, so a
+                    department-less account is obvious rather than a silent
+                    dead end (README "Locked out"). Nothing while the profile
+                    is still loading, to avoid a flash of stale/empty state. */}
+                {!profileLoading && role && (
+                  <p data-testid="sidebar-role" className="truncate text-xs text-slate-500">
+                    {[ROLE_LABELS[role], departmentLabel(role, profile)].filter(Boolean).join(' · ')}
+                  </p>
+                )}
               </div>
             </div>
           )}

@@ -1,7 +1,63 @@
+# Dependencies and builds
 node_modules/
 dist/
+.vite/
+*.tsbuildinfo
+
+# Secrets - .env holds the database password and the Supabase service-role
+# key. Only the blank template is committed.
 .env
-.env.local
-*.log
-.DS_Store
+.env.*
+!.env.example
+*.local
+
+# Certificates and private keys (e.g. DATABASE_SSL_CA's prod-ca-*.crt)
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Real inventory data - spreadsheets carry names, phone numbers, serials,
+# invoices and AnyDesk IDs, and session/handout exports download as
+# .xlsx/.csv. None of it belongs in git.
+docs/csv/
+*.csv
+*.xlsx
+*.xls
+
+# Tests, test fixtures and test configs - kept locally, not in the repository
+*.test.js
+*.test.jsx
+server/test/
+client/src/test/
+client/vitest.config.js
+server/vitest.config.js
+e2e/
+playwright.config.js
+
+# Test output
 coverage/
+test-results/
+playwright-report/
+blob-report/
+playwright/.cache/
+
+# Planning notes - kept locally; README.md and AKM_User_Documentation.md are the docs
+improvements.md
+docs/superpowers/
+
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS and editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/

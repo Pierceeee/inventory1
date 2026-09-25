@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import PageHeader from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import Icon from '../components/ui/Icon.jsx'
@@ -12,17 +12,21 @@ import SessionItemsTable from '../components/sessions/SessionItemsTable.jsx'
 import UploadItemsDialog from '../components/sessions/UploadItemsDialog.jsx'
 import ClearItemsDialog from '../components/sessions/ClearItemsDialog.jsx'
 import CompleteSessionDialog from '../components/sessions/CompleteSessionDialog.jsx'
+import DeleteSessionDialog from '../components/sessions/DeleteSessionDialog.jsx'
 import ScannerPanel from '../components/scanner/ScannerPanel.jsx'
 import UndoScanDialog from '../components/scanner/UndoScanDialog.jsx'
 import { useToast } from '../components/ui/Toast.jsx'
 import { useSession } from '../hooks/useSession.jsx'
-import { useInventorySession, useSessionItems, useUpdateSession } from '../hooks/useInventorySessions.js'
+import {
+  useDownloadSessionExport, useInventorySession, useSessionItems, useUpdateSession,
+} from '../hooks/useInventorySessions.js'
 import { canManage, canScan, isAdmin } from '../lib/roles.js'
 
 const PAGE_SIZE = 100
 
 export default function SessionDetailPage() {
   const { id } = useParams()
+  const navigate = useNavigate()
   const { profile, profileLoading } = useSession()
   const { notify } = useToast()
   const { data: session, isPending, error } = useInventorySession(id)
@@ -32,6 +36,7 @@ export default function SessionDetailPage() {
   const { data: itemsResult, isLoading: itemsLoading, error: itemsError } =
     useSessionItems(id, { status, q, page, page_size: PAGE_SIZE })
   const updateSession = useUpdateSession()
+  const downloadExport = useDownloadSessionExport()
 
   const [uploading, setUploading] = useState(false)
   const [clearing, setClearing] = useState(false)
@@ -39,6 +44,7 @@ export default function SessionDetailPage() {
   const [pickingColumns, setPickingColumns] = useState(false)
   const [displayDraft, setDisplayDraft] = useState([])
   const [undoingItem, setUndoingItem] = useState(null)
+  const [deleting, setDeleting] = useState(false)
 
   // The role-gated action buttons below depend on /me, which can resolve
   // after the session query (G-12) - wait for both rather than flash them in.
@@ -95,10 +101,29 @@ export default function SessionDetailPage() {
             {isAdmin(profile) && active && (
               <Button onClick={() => setCompleting(true)}>Mark Complete</Button>
             )}
-            {/* G5 adds Export and Delete here. */}
+            {manage && (
+              <Button
+                variant="secondary"
+                onClick={() => downloadExport.mutate(session)}
+                disabled={downloadExport.isPending}>
+                <Icon name="download" size={16} /> {downloadExport.isPending ? 'Exporting…' : 'Export'}
+              </Button>
+            )}
+            {isAdmin(profile) && (
+              <button
+                type="button"
+                title={`Delete ${session.name}`}
+                aria-label={`Delete ${session.name}`}
+                onClick={() => setDeleting(true)}
+                className="rounded p-2 text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-700">
+                <Icon name="trash" size={16} />
+              </button>
+            )}
           </>
         }
       />
+
+      {downloadExport.error && <ErrorBanner error={downloadExport.error} className="mb-4" />}
 
       {!active && (
         <p className="mb-4 rounded-lg bg-slate-100 px-4 py-3 text-sm text-slate-600">
@@ -140,6 +165,12 @@ export default function SessionDetailPage() {
       <ClearItemsDialog session={session} open={clearing} onClose={() => setClearing(false)} />
       <CompleteSessionDialog session={session} open={completing} onClose={() => setCompleting(false)} />
       <UndoScanDialog session={session} item={undoingItem} open={Boolean(undoingItem)} onClose={() => setUndoingItem(null)} />
+      <DeleteSessionDialog
+        session={session}
+        open={deleting}
+        onClose={() => setDeleting(false)}
+        onDeleted={() => navigate('/sessions')}
+      />
 
       <Modal open={pickingColumns} onClose={() => setPickingColumns(false)} title="Choose columns"
         footer={

@@ -1,4 +1,4 @@
-import { conflict, forbidden, invalid, noDepartment, notFound } from '../lib/errors.js'
+import { AppError, conflict, forbidden, invalid, noDepartment, notFound, tooManyAttempts } from '../lib/errors.js'
 import { isUuid } from '../lib/values.js'
 import { assertDepartmentAccess, departmentScope } from '../lib/access.js'
 import { upsertProfile } from './profiles.js'
@@ -153,4 +153,63 @@ export async function completeSession(db, id, user) {
   )
   if (rowCount === 0) throw sessionNotActive(session)
   return findSession(db, id)
+}
+
+/**
+ * Admin-only, at ANY status (F3 - the "download a backup first" step is
+ * UI-only; the server does not require it). Order matters: the route already
+ * checked the role (403); this checks existence (404), then the per-user
+ * failed-attempt limiter (429, BEFORE calling Supabase at all - a locked-out
+ * attacker never even reaches signIn), then the password itself (422, NEVER
+ * 401 - a typo must not sign the admin out of their own session).
+ *
+ * security HIGH (reviewer-reproduced): the reservation is taken with `hit()`
+ * BEFORE `auth.signIn()`, not a `check()`-then-`commit()`-after straddling
+ * that `await`. `check()` alone only LOOKS at the budget; two (or twenty)
+ * concurrent requests would all see it un-full and all pass, and only commit
+ * afterwards - Supabase's own ~100-150ms latency is easily enough for every
+ * one of them to slip through before any commits. Reserving synchronously,
+ * before the network call, closes that window: only 5 concurrent callers can
+ * ever win the reservation at all, no matter how slow signIn is.
+ *   - Wrong password: the reservation already counts against the budget -
+ *     nothing further to do.
+ *   - Right password: this was never a real failed attempt - `reset()` gives
+ *     the whole budget back (also clears any earlier genuine failures, which
+ *     is fine: a successful admin re-auth is exactly when forgiving prior
+ *     typos is safe).
+ *   - signIn ITSELF throws (Supabase outage, its own rate limit, etc - never
+ *     a wrong password, which resolves to `null`): that is not the caller's
+ *     fault, so `release()` gives back the one reservation this attempt took
+ *     before rethrowing, and an outage can never burn down the budget.
+ */
+export async function deleteSession(db, auth, deleteRateLimiter, id, password, user) {
+  const session = await getSessionFor(db, id, user)
+
+  const { allowed, retryAfterMs } = deleteRateLimiter.hit(user.id)
+  if (!allowed) {
+    throw tooManyAttempts('Too many attempts. Wait a while and try again.',
+      { retry_after_ms: Math.ceil(retryAfterMs) })
+  }
+
+  let check
+  try {
+    check = user.email ? await auth.signIn(user.email, password) : null
+  } catch (err) {
+    deleteRateLimiter.release(user.id)
+    throw err
+  }
+
+  if (!check || check.user.id !== user.id) {
+    throw new AppError(422, 'WRONG_PASSWORD', 'That password is not correct.',
+      { password: 'That password is not correct.' })
+  }
+  deleteRateLimiter.reset(user.id)
+
+  // Items and scan_events cascade (they reference inventory_sessions.id
+  // on delete cascade) - nothing else to clean up. This DELETE locks the
+  // session row before its cascade reaches the item rows, so it is already
+  // in the right global lock order (services/scans.js's comment on
+  // lockSessionForShare).
+  await db.query('delete from inventory_sessions where id = $1', [id])
+  return { id: session.id, name: session.name, items: session.item_count }
 }

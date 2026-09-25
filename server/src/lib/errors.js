@@ -42,3 +42,16 @@ export const isUniqueViolation = (err, constraint) =>
 // problem, not an authentication one, and a 401 would wrongly sign the user out.
 export const tooManyRequests = (message = 'Too many attempts. Please slow down and try again shortly.', details = {}) =>
   new AppError(429, 'RATE_LIMITED', message, details)
+
+// Distinct code from tooManyRequests/RATE_LIMITED (scan volume, Supabase's
+// own sign-in throttling): this is specifically the per-user failed-password
+// limiter on session deletion (F2). Never 401, same reasoning.
+export const tooManyAttempts = (message = 'Too many attempts. Wait a while and try again.', details = {}) =>
+  new AppError(429, 'TOO_MANY_ATTEMPTS', message, details)
+
+// security HIGH: the process-wide single-flight guard around the
+// synchronous xlsx build (lib/exportGuard.js) - distinct from
+// RATE_LIMITED/TOO_MANY_ATTEMPTS (those are per-user; this is "someone,
+// anyone, is already exporting right now"). Never 401, same reasoning.
+export const exportBusy = (message = 'Another export is being prepared. Try again in a few seconds.', details = {}) =>
+  new AppError(429, 'EXPORT_BUSY', message, details)

@@ -215,6 +215,12 @@ export const sessionImport = z.object({
 
 export const clearItems = z.object({ confirm: z.literal('CLEAR', { error: 'Type CLEAR to confirm.' }) })
 
+// ---- session deletion (Group 5) ----
+
+export const sessionDelete = z.object({
+  password: z.string({ error: 'Enter your password.' }).min(1, 'Enter your password.'),
+})
+
 // ---- scanning ----
 
 // The final 1-128 length check happens after JS-side normalisation
@@ -223,4 +229,15 @@ export const clearItems = z.object({ confirm: z.literal('CLEAR', { error: 'Type 
 // empty/absurdly long body from reaching that point.
 export const scanCreate = z.object({
   code: z.string({ error: 'Enter an item code.' }).min(1, 'Enter an item code.').max(1000, 'That code is too long.'),
+})
+
+// ---- items (Inventory page, G4) ----
+
+// Same length cap as session_items_code_trimmed (1-128) - normalised the
+// same way as import: trimmed, and an empty value is refused rather than
+// silently kept.
+export const itemUpdate = z.object({
+  item_code: z.string({ error: 'Item code is required.' }).trim()
+    .min(1, 'Item code is required.').max(128, 'Keep the item code under 128 characters.').optional(),
+  data: z.record(z.string(), z.union([z.string(), z.number(), z.null()]), { error: 'data must be an object.' }).optional(),
 })

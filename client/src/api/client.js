@@ -82,28 +82,62 @@ export async function fetchWithAuth(path, options) {
   return retried
 }
 
-export async function request(path, options) {
-  const response = await fetchWithAuth(path, options)
+/** The one place a failed response becomes an `ApiError` - shared by
+ *  `request()` and `errorFrom()` (code MEDIUM + security LOW review fix: the
+ *  two must not drift, or a caller reading a raw `Response` - a binary
+ *  download - could end up "signed in" in the UI while actually
+ *  deactivated). A deactivated account is done, wherever in the session it
+ *  happens - not just at login. This must never be a 401 (that means
+ *  "expired token"), so client.js's ordinary renew logic never sees it; end
+ *  it explicitly here instead. */
+function apiErrorFrom(response, payload) {
+  const code = payload?.error?.code ?? 'UNKNOWN'
+  if (response.status === 403 && code === 'ACCOUNT_DISABLED') endSession()
+  return new ApiError({
+    status: response.status,
+    code,
+    message: payload?.error?.message ?? '',
+    details: payload?.error?.details ?? {},
+  })
+}
 
+/** Builds the same `ApiError` `request()` throws, for callers that bypass it
+ *  to read a raw `Response` themselves (binary downloads: the session
+ *  export, exports.js). Never throws itself - an unreadable body just yields
+ *  an ApiError with an empty message, so the caller still gets the
+ *  response's status/code where the server sent one. */
+export async function errorFrom(response) {
   let payload = null
   try {
     payload = await response.json()
   } catch {
-    payload = null
+    // Body wasn't JSON (or was empty) - fall through with payload = null.
+  }
+  return apiErrorFrom(response, payload)
+}
+
+export async function request(path, options) {
+  const response = await fetchWithAuth(path, options)
+  if (response.status === 204) return { data: null, warning: undefined }
+
+  let payload = null
+  let unreadable = false
+  try {
+    payload = await response.json()
+  } catch {
+    unreadable = true
   }
 
-  if (!response.ok) {
-    const code = payload?.error?.code ?? 'UNKNOWN'
-    // A deactivated account is done, wherever in the session it happens - not
-    // just at login. This must never be a 401 (that means "expired token"),
-    // so client.js's ordinary renew logic never sees it; end it explicitly.
-    if (response.status === 403 && code === 'ACCOUNT_DISABLED') endSession()
+  // A success we cannot read - a proxy answering with HTML, a read cut short
+  // by a navigation - must not pass as "succeeded with no data".
+  if (response.ok && unreadable) {
     throw new ApiError({
       status: response.status,
-      code,
-      message: payload?.error?.message ?? '',
-      details: payload?.error?.details ?? {},
+      code: 'BAD_RESPONSE',
+      message: 'The server sent a response the app could not read. Please try again.',
     })
   }
+
+  if (!response.ok) throw apiErrorFrom(response, payload)
   return { data: payload?.data, warning: payload?.warning }
 }

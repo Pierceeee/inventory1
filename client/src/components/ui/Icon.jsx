@@ -28,6 +28,7 @@ const PATHS = {
   camera: 'M4 7h2.5l1-2h9l1 2H20a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V8a1 1 0 0 1 1-1ZM12 17a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z',
   undo: 'M9 14 4 9l5-5M4 9h9a7 7 0 1 1-7 7',
   printer: 'M6 9V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v5M4 9h16v7a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V9ZM8 13h8v6H8v-6Z',
+  trash: 'M4 7h16M9 7V4.5A1.5 1.5 0 0 1 10.5 3h3A1.5 1.5 0 0 1 15 4.5V7m2 0v12.5A1.5 1.5 0 0 1 15.5 21h-7A1.5 1.5 0 0 1 7 19.5V7h10ZM10 11v6M14 11v6',
 }
 
 export default function Icon({ name, size = 18, title, className = '' }) {

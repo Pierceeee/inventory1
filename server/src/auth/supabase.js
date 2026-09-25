@@ -12,6 +12,7 @@ const CLIENT_OPTIONS = {
  *   verify(accessToken)              -> user | null
  *   createUser({email,password,full_name}) -> { id, email, full_name }
  *   deleteUser(id)                   -> void   (compensation only, best-effort)
+ *   settings()                       -> { autoconfirm, signupDisabled } | null
  * where session = { token, refresh_token, expires_at, user } and
  *       user    = { id, email, full_name }.
  *
@@ -80,6 +81,28 @@ export function createSupabaseAuth({ url, key, serviceRoleKey }) {
       if (!serviceRoleKey) return
       const { error } = await admin().auth.admin.deleteUser(id)
       if (error) console.error('[auth] admin deleteUser failed:', error.message)
+    },
+
+    /** Read-only project settings, checked once at startup (index.js) to
+     *  decide whether ADMIN_EMAILS can be trusted at all (security HIGH -
+     *  see lib/adminEmailsPolicy.js). A public GoTrue endpoint: the anon key
+     *  is enough, no session or service-role key needed. Returns null
+     *  (never throws) on anything but a clean 2xx - a startup check must
+     *  never crash the server over a flaky network call, and must never hang
+     *  it either: a 5s abort turns a stalled Supabase into the same "null ->
+     *  warn and continue" path as any other failure here. */
+    async settings() {
+      try {
+        const res = await fetch(`${url}/auth/v1/settings`, {
+          headers: { apikey: key }, signal: AbortSignal.timeout(5000),
+        })
+        if (!res.ok) return null
+        const json = await res.json()
+        return { autoconfirm: Boolean(json.mailer_autoconfirm), signupDisabled: Boolean(json.disable_signup) }
+      } catch (err) {
+        console.error('[auth] could not read Supabase auth settings:', err.message)
+        return null
+      }
     },
   }
 }

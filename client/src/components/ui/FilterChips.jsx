@@ -5,7 +5,7 @@ export default function FilterChips({ label, options, value, onChange }) {
         const selected = option.value === value
         return (
           <button
-            key={option.value}
+            key={option.value ?? option.label}
             type="button"
             aria-pressed={selected}
             onClick={() => onChange(option.value)}

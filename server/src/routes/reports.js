@@ -3,6 +3,7 @@ import { bool, date, importBatch, parse } from '../validation.js'
 import { requireRole } from '../middleware/access.js'
 import { CUSTODY_ROLES } from '../lib/values.js'
 import { getDashboard } from '../services/dashboard.js'
+import { getAuditDashboard } from '../services/auditDashboard.js'
 import { exportAssignmentsCsv } from '../services/exports.js'
 import { importDevices, importEmployees } from '../services/imports.js'
 
@@ -15,6 +16,12 @@ export function reportsRouter({ db }) {
 
   router.get('/dashboard', custody, async (req, res) => {
     res.json({ data: await getDashboard(db) })
+  })
+
+  // Distinct from /dashboard above - Express matches it exactly, so order
+  // relative to that route does not matter, but it is kept nearby.
+  router.get('/dashboard/audit', custody, async (req, res) => {
+    res.json({ data: await getAuditDashboard(db, req.user) })
   })
 
   router.get('/export/assignments', custody, async (req, res) => {

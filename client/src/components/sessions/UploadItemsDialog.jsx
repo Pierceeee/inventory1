@@ -1,9 +1,9 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import Modal from '../ui/Modal.jsx'
 import Button from '../ui/Button.jsx'
 import ErrorBanner from '../ui/ErrorBanner.jsx'
 import DropZone from './DropZone.jsx'
-import ColumnPicker from './ColumnPicker.jsx'
+import SheetPreview from './SheetPreview.jsx'
 import ImportPreview from '../imports/ImportPreview.jsx'
 import { useToast } from '../ui/Toast.jsx'
 import { buildImportPayload, parseSpreadsheet, readFileAsArrayBuffer } from '../../lib/spreadsheet.js'
@@ -14,22 +14,30 @@ import { ApiError } from '../../lib/errors.js'
 // ErrorBanner shows its own message instead of the generic network fallback.
 const localError = (message) => new ApiError({ status: 0, code: 'INVALID_FILE', message })
 
-/** DropZone -> detected item-code column + row count -> ColumnPicker ->
- *  Check file (dry run) -> ImportPreview -> Import N items -> result. */
+const plural = (n) => `${n} item${n === 1 ? '' : 's'}`
+
+/** View, then approve: DropZone -> the file's rows plus the dry run's verdict
+ *  (added / skipped / cannot be read), checked as soon as the file is read ->
+ *  Import N items -> result. Nothing to set up: the scan-code column is
+ *  picked automatically and every other column is kept as it is. Which
+ *  columns the item table shows stays under "Choose columns" on the session
+ *  page - an upload never changes it (display_columns is not sent). */
 export default function UploadItemsDialog({ session, open, onClose }) {
   const [fileName, setFileName] = useState('')
-  const [parsed, setParsed] = useState(null)
-  const [selected, setSelected] = useState([])
-  const [preview, setPreview] = useState(null)
+  const [payload, setPayload] = useState(null)
+  const [check, setCheck] = useState(null)
   const [committed, setCommitted] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
   const { notify } = useToast()
   const importItems = useImportItems()
+  // Bumped by every reset, so a dry run still in flight for a file the user
+  // has since replaced (or closed) never lands on the new one.
+  const attempt = useRef(0)
 
   function reset() {
-    setFileName(''); setParsed(null); setSelected([])
-    setPreview(null); setCommitted(null); setError(null)
+    attempt.current += 1
+    setFileName(''); setPayload(null); setCheck(null); setCommitted(null); setError(null); setBusy(false)
   }
 
   function handleClose() {
@@ -37,104 +45,129 @@ export default function UploadItemsDialog({ session, open, onClose }) {
     onClose()
   }
 
+  const send = (built, commit) => importItems.mutateAsync({
+    id: session.id, columns: built.columns, rows: built.rows, commit,
+  })
+
+  async function runCheck(built) {
+    const mine = attempt.current
+    setBusy(true); setError(null)
+    try {
+      const data = await send(built, false)
+      if (mine === attempt.current) setCheck(data)
+    } catch (err) {
+      if (mine === attempt.current) setError(err)
+    } finally {
+      if (mine === attempt.current) setBusy(false)
+    }
+  }
+
   async function handleFile(file) {
     reset()
+    const mine = attempt.current
     setFileName(file.name)
     setBusy(true)
     try {
       const buffer = await readFileAsArrayBuffer(file)
-      const result = await parseSpreadsheet({ name: file.name, buffer })
-      if (result.rows.length === 0) { setError(localError('That file has no rows.')); return }
-      const built = buildImportPayload(result)
-      if (built.error) { setError(localError(built.error)); return }
-      setParsed(result)
-      setSelected(built.columns)
+      const parsed = await parseSpreadsheet({ name: file.name, buffer })
+      if (mine !== attempt.current) return
+      if (parsed.rows.length === 0) { setError(localError('That file has no rows.')); setBusy(false); return }
+      const built = buildImportPayload(parsed)
+      if (built.error) { setError(localError(built.error)); setBusy(false); return }
+      setPayload(built)
+      await runCheck(built)
     } catch (err) {
-      setError(err)
-    } finally {
-      setBusy(false)
+      if (mine === attempt.current) { setError(err); setBusy(false) }
     }
   }
 
-  async function run(commit) {
+  async function handleImport() {
+    const mine = attempt.current
     setBusy(true); setError(null)
     try {
-      const built = buildImportPayload(parsed, selected)
-      const data = await importItems.mutateAsync({
-        id: session.id, columns: built.columns, display_columns: built.display_columns,
-        rows: built.rows, commit,
+      const data = await send(payload, true)
+      notify(`Added ${plural(data.created)} to ${session.name}.`, {
+        detail: data.skipped > 0 ? `${data.skipped} skipped.` : undefined,
       })
-      if (commit) {
-        setCommitted(data)
-        setPreview(null)
-        notify(`Added ${data.created} item${data.created === 1 ? '' : 's'} to ${session.name}.`, {
-          detail: data.skipped > 0 ? `${data.skipped} skipped.` : undefined,
-        })
-      } else {
-        setPreview(data)
-      }
+      if (mine === attempt.current) setCommitted(data)
     } catch (err) {
-      setError(err)
+      if (mine === attempt.current) setError(err)
     } finally {
-      setBusy(false)
+      if (mine === attempt.current) setBusy(false)
     }
   }
-
-  const built = parsed ? buildImportPayload(parsed) : null
 
   return (
     <Modal
       open={open}
       onClose={handleClose}
       title={session ? `Upload items — ${session.name}` : 'Upload items'}
-      wide
+      wide="xl"
       footer={
-        <>
-          {committed ? (
+        committed ? (
+          <>
             <Button variant="secondary" onClick={reset}>Upload another file</Button>
-          ) : (
+            <Button onClick={handleClose}>Done</Button>
+          </>
+        ) : (
+          <>
             <Button variant="secondary" onClick={handleClose}>Cancel</Button>
-          )}
-          {parsed && !committed && !preview && (
-            <Button onClick={() => run(false)} disabled={busy}>{busy ? 'Checking…' : 'Check file'}</Button>
-          )}
-          {preview && !committed && (
-            <>
-              <Button variant="secondary" onClick={() => setPreview(null)}>Back</Button>
-              <Button onClick={() => run(true)} disabled={busy || preview.created === 0}>
-                {busy ? 'Importing…' : `Import ${preview.created} item${preview.created === 1 ? '' : 's'}`}
+            {payload && !check && !busy && (
+              <Button onClick={() => runCheck(payload)}>Try again</Button>
+            )}
+            {payload && check && (
+              <Button onClick={handleImport} disabled={busy || check.created === 0}>
+                {busy ? 'Importing…' : `Import ${plural(check.created)}`}
               </Button>
-            </>
-          )}
-        </>
+            )}
+          </>
+        )
       }>
       <div className="flex flex-col gap-4">
         <ErrorBanner error={error} />
 
-        {!parsed && <DropZone onFile={handleFile} disabled={busy} />}
+        {!payload && <DropZone onFile={handleFile} disabled={busy} />}
 
-        {fileName && parsed && built && !built.error && (
-          <>
+        {payload && (
+          <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
             <p className="text-sm text-slate-600">
-              {fileName} · Item codes: column <strong>{built.codeColumn}</strong> · {parsed.rows.length} rows
+              <span className="font-medium text-slate-900">{fileName}</span>
+              {' · '}{payload.rows.length} rows · Items are scanned by <strong>{payload.codeColumn}</strong>
             </p>
-            {built.reserved.length > 0 && (
-              <p className="text-xs text-slate-500">
-                Ignored columns (already used for scan results): {built.reserved.join(', ')}
-              </p>
+            {!committed && (
+              <button type="button" onClick={reset} className="text-xs font-medium text-brand-700 hover:underline">
+                Choose a different file
+              </button>
             )}
-            {!committed && !preview && (
-              <ColumnPicker columns={built.columns} selected={selected} onChange={setSelected} />
-            )}
-          </>
+          </div>
         )}
 
-        {preview && !committed && <ImportPreview result={preview} />}
+        {payload?.reserved.length > 0 && !committed && (
+          <p className="text-xs text-slate-500">
+            Ignored columns (already used for scan results): {payload.reserved.join(', ')}
+          </p>
+        )}
+
+        {payload && !check && busy && (
+          <p role="status" className="text-sm text-slate-500">Checking the file…</p>
+        )}
+
+        {check && !committed && <ImportPreview result={check} />}
+
+        {payload && !committed && (
+          <SheetPreview
+            fileName={fileName}
+            codeColumn={payload.codeColumn}
+            columns={payload.columns}
+            rows={payload.rows}
+            problems={check?.errors}
+          />
+        )}
 
         {committed && (
           <div className="rounded-lg bg-ok-50 p-4 ring-1 ring-inset ring-emerald-200">
             <p className="text-sm font-semibold text-ok-700">
-              Added {committed.created} item{committed.created === 1 ? '' : 's'}.
+              Added {plural(committed.created)}.
               {committed.skipped > 0 && ` ${committed.skipped} skipped.`}
             </p>
           </div>

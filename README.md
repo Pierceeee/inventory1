@@ -1,28 +1,28 @@
-# Device Handout Tracker
+# Device Handout Tracker + AKM
 
-**Who has which company device, and since when.**
+**Device custody and periodic inventory audits in one app.**
 
-At Adspark, every employee is issued a laptop (MacBook or Windows) and a mobile
-phone, and keeps them until they leave. This app is where the IT team records
-each of those handouts - the moment a device goes to someone, and the moment it
-comes back - so two questions always take a couple of clicks:
+This is the **Device Handout Tracker** (Adspark-branded in the UI). It combines two complementary modules:
 
-- *Who has laptop `ASP-0042`, and since when?*
-- *What devices does Maria Santos currently hold?*
+1. **Custody Module** (device handout tracking) — *Who has which company device, and since when?*
+   - Records each device handout and return, building permanent history
+   - Tracks custody through employee resignations, swaps, repairs
+   - At Adspark, every employee is issued a laptop (MacBook or Windows) and mobile phone and keeps them until they leave
 
-It also keeps a permanent history of every device, and makes sure nothing is
-forgotten when someone resigns.
+2. **AKM Module** (scan audits) — *Is every item on this spreadsheet physically here?*
+   - Periodic audits: upload an inventory list as Excel, scan QR codes to account for items, mark complete
+   - Sessions are created per department each quarter; items can have free-form columns
+   - Read-only archive after 7 days; history preserved when items are cleared and re-scanned
 
-> **How is this different from AKM?** AKM does periodic *scan audits* - walking
-> the floor to confirm 200 items exist. This app does *custody tracking* - this
-> laptop went to this person on this date. Different jobs. A device's asset tag
-> here is the same code as its AKM `itemCode`.
+The two modules share sign-in (Supabase email/password), roles (Admin / Head / Scanner), and department access control. They can be used independently or together.
+
+> A device's custody **asset tag** (`ASP-0042`) is the same code as an AKM session **item code**, so you can cross-reference "currently held by" data later if needed.
 
 ---
 
 ## Contents
 
-1. [The ideas behind it](#1-the-ideas-behind-it)
+1. [Core concepts](#1-core-concepts)
 2. [Using the app](#2-using-the-app)
 3. [Everyday tasks](#3-everyday-tasks)
 4. [What the app will refuse, and why](#4-what-the-app-will-refuse-and-why)
@@ -31,17 +31,36 @@ forgotten when someone resigns.
 7. [Troubleshooting](#7-troubleshooting)
 8. [For developers](#8-for-developers)
 9. [Current limits](#9-current-limits)
+10. [Upgrading an existing install](#10-upgrading-an-existing-install)
+11. [Running it for the office](#11-running-it-for-the-office)
 
 ---
 
-## 1. The ideas behind it
+## 1. Core concepts
+
+**Custody Module** (device handout tracking):
 
 | Term | Meaning |
 |---|---|
-| **Device** | A laptop or mobile phone, identified by its **asset tag** (e.g. `ASP-0042`). |
+| **Device** | A laptop or mobile phone, identified by its **asset tag** (e.g. `ASP-0042`). Catalogued once, kept forever. |
 | **Employee** | A member of staff who can be given devices. *Active* or *Resigned*. |
-| **Handout** | One record of a device going to an employee: when it went out, what condition it was in, what came with it (charger, case...), and - once it comes back - when, why, and in what condition. |
+| **Handout** | One record of a device going to an employee: when, condition, accessories (charger, case...), and - once back - when, why, condition, and what returned. |
 | **IT staff** | The people who sign in and record handouts. Every handout remembers who recorded it. |
+
+**AKM Module** (scan audits):
+
+| Term | Meaning |
+|---|---|
+| **Session** | A named audit exercise — e.g., "Laptop Inventory Q3 2026". Belongs to one department. Items uploaded, scanned, then archived 7 days after completion. |
+| **Item** | One line from an uploaded inventory spreadsheet. Identified by **item code** (e.g., `IT-LAP-001`). Item codes are unique within a session but repeat across sessions each quarter. Any columns from the spreadsheet are stored as data fields. |
+| **Scan event** | A record of someone scanning an item code (success, already scanned, or not found). The audit log is permanent and survives item clearing. |
+
+**Shared across both modules:**
+
+| Term | Meaning |
+|---|---|
+| **Role** | Permission level: **Admin** (full access), **Head** (own department only), **Scanner** (scan-only in own department). |
+| **Department** | A team or division — IT, Creative, Finance, etc. Users and sessions are scoped by department. |
 
 A few rules shape everything else:
 
@@ -63,49 +82,54 @@ A few rules shape everything else:
 
 ## 2. Using the app
 
-Sign in with the email and password your admin created for you. The sidebar has
-five pages.
+Sign in with the email and password your admin created for you. The sidebar shows different pages depending on your role.
 
-### Dashboard
+### Dashboard (Admin and Head only)
 
-"Where every device is right now."
+Shows the **Audit Progress** for the current inventory:
+- Total number of departments
+- Number of active sessions
+- Total items and how many are scanned
+- Overall progress bar
+- Per-department breakdown with progress and item counts
 
-- **Counts** - total devices, how many are issued, available, in repair, and
-  retired, split by laptops and mobiles.
-- **Needs attention** - things someone should act on:
-  - resigned employees who **still hold devices**, with each asset tag
-  - devices **in repair** (they can't be issued until they're back)
-- **Who has what** - every device currently out, and who has it.
+Below the audit section are **Custody widgets** (device management):
+- Device counts: Issued, Available, In Repair, Retired
+- Handout alerts: resigned employees still holding devices, devices in repair
+- "Who has what" — all devices currently out and their holders
 
-### Devices
+### Sessions (all roles)
 
-The full register. Search by asset tag, serial number, model or brand - search
-ignores capitals and extra spaces, so `asp-42` finds `ASP-0042`. Filter with
-the chips: **All / Laptops / Mobiles** and **Available / Issued / Repair /
-Retired**. The *Held by* column shows the current holder.
+Browse sessions by status (Active, Completed, Archived) and filter by department. Each session shows:
+- Name and status badge
+- Scanned/total items progress
+- Upload, Export, and other action buttons
 
-Open a device to see its **current holder**, its complete **handout history**
-(newest first, with conditions and who recorded each one), and the buttons to
-**Issue device**, **Return device**, **Edit**, or **Retire**.
+Scanners see the Sessions page on login. Admins and heads can also upload Excel files and manage sessions.
 
-### Employees
+**Uploading a spreadsheet:** you view it, then approve it. The dialog shows the file's rows and what the import will do (N added, rows skipped and why), and **Import N items** saves them. You never match columns. The scan-code column is chosen automatically:
+1. A column named *Item Code* (or `itemCode`, `item-code`, etc.).
+2. Otherwise, a filled-in, unique label-like column, such as `NEW ASSET TAG` (preferred over `OLD ASSET TAG`), `Barcode` or `Serial Number`.
+3. Otherwise, the first filled-in, unique column.
 
-Everyone on staff, with how many devices each person holds. Search by name,
-email or department; filter **Active / Resigned**.
+The dialog says which column it chose. Every other column is kept as data.
 
-Open a person to see the devices they **currently hold** (with the date each was
-handed over) and their full history. This is also where you **Mark resigned**.
+### Inventory (Admin and Head only)
 
-### Handouts
+Master view of all items across all sessions in one searchable, filterable table. Filter by:
+- Session (All sessions or one named session)
+- Scan status (Total / Scanned / Pending)
+- Item code search
 
-Every issue and return, newest first - the "when did I give this out?" view.
-Filter by **Still out / Returned** and by date range. **Export CSV** downloads
-exactly what is on screen, ready for Excel.
+Each item row shows the item code, all imported columns, scan status, scan timestamp, and who scanned it. Click the pencil icon to edit, or the trash icon to delete (admin only).
 
-### Import
+### Devices, Employees, Handouts, Import
 
-Loads your existing spreadsheets so you don't have to type everything in. See
-[Importing spreadsheets](#importing-spreadsheets) below.
+Custody management (device handout tracking). Available to admins and heads only:
+- **Devices** - the full register of laptops and mobiles
+- **Employees** - all staff with device counts
+- **Handouts** - every issue and return log
+- **Import** - load existing spreadsheets (CSV format)
 
 ---
 
@@ -159,17 +183,32 @@ that's leaving service for good, use **Retire** - its history stays.
 
 ### Importing spreadsheets
 
-Save your spreadsheet from Excel as **CSV** (File → Save As → CSV), then on the
-**Import** page:
+You view the spreadsheet, then approve it. There are no columns to match and
+nothing to rename. On the **Import** page:
 
 1. Choose **Devices** or **Employees**.
-2. Choose the file.
-3. Match your columns to the app's fields. Required: *Asset tag* and *Type*
-   (`laptop` or `mobile`) for devices; *Full name* for employees.
-4. Click **Preview import**. Nothing is saved yet - you'll see how many rows
-   will be added and every problem row by its **spreadsheet line number**.
-5. Click **Import** (e.g. *Import 38 devices*) to save. Rows whose asset tag or
-   email already exists are skipped and listed, never overwritten.
+2. Choose the file (`.xlsx`, `.xls` or `.csv`; first sheet only).
+3. Check what the page shows straight away. Nothing is saved yet. You'll see:
+   - which column fills each field, for example *Asset tag from NEW ASSET TAG*;
+   - the rows exactly as they will be saved;
+   - how many will be added;
+   - every problem row, by its **spreadsheet line number**.
+4. Click **Import** (e.g. *Import 38 devices*) to save. Rows whose asset tag,
+   serial number or email already exists are skipped and listed, never
+   overwritten.
+
+How the columns are read:
+
+- **Devices.**
+  - *Asset tag*: the column that identifies each device. That's an asset-tag-like column that is filled in and unique; *NEW ASSET TAG* wins over *OLD ASSET TAG*. In a phone sheet, it's the *Mobile Number* or *IMEI*.
+  - *Model*: a Model, Handset Model or Description column.
+  - *Serial number* and *Operating system*: columns with those names. OS values like "Windows 11" are saved as `windows`, and the original text also goes into Notes.
+  - *Type*: a Type column if the sheet has one. Otherwise it's worked out per row: `laptop` for laptop lines (MacBook, ThinkPad, Latitude...), `mobile` when the OS or model says phone or tablet (iPhone, Samsung A13, OPPO...). Any other row gets the sheet's default: `mobile` in a phone sheet (one with Handset, IMEI or SIM columns, or keyed by Mobile Number), else `laptop`.
+  - *Brand*: a Brand or Make column. Otherwise it's read from the model when the maker is clear, e.g. "Dell Latitude", "MacBook", "MSI Modern", "OPPO A94".
+  - *Notes*: the sheet's Notes column, then **every other column** as a "column: value" line (location, supplier, invoice, assignee, plan...). Nothing in the file is lost.
+  - **N/A, TBD, none and "-" count as empty.** So two phones with "N/A" as their serial number aren't treated as the same serial.
+  - A row whose asset tag or serial number is repeated **within the file** is listed as *appears earlier in this file*, so you know to fix the sheet. One that's already saved is listed as *already exists*.
+- **Employees.** A Name or Full Name column (or First Name + Last Name), plus Email and Department (or Dept / Business Unit). Columns an employee has no field for are listed as *not saved*.
 
 > **Import doesn't know who holds what.** After importing devices and employees,
 > record each current holder with **Issue device**, setting **Handed out on** to
@@ -220,7 +259,21 @@ You need:
    | `DATABASE_URL` | **Connect** button (top of project) → Method: **Session pooler** → copy, and put your password in place of `[YOUR-PASSWORD]` |
    | `SUPABASE_URL` | Project Settings → **Data API** → Project URL. Just `https://<something>.supabase.co` - nothing after it |
    | `SUPABASE_ANON_KEY` | Project Settings → **API Keys** → the *publishable* (or legacy *anon*) key |
-   | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → **API Keys** → the *secret* / *service_role* key. Optional - without it the server still runs, but the **Register** page can't create accounts until it's set |
+   | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → **API Keys** → the *secret* / *service_role* key. **Optional** — without it the server still runs, but the **Register** page answers 503 REGISTRATION_UNAVAILABLE |
+
+   **Optional environment variables** (add to `.env` only if needed):
+
+   | Setting | Purpose |
+   |---|---|
+   | `PORT` | Server port (default `3001`) |
+   | `HOST` | Server address (default `127.0.0.1`; see "Running it for the office") |
+   | `OFFICE_TIME_ZONE` | Time zone for session export timestamps (default `Asia/Manila`; must be a valid IANA zone like `US/Eastern`) |
+   | `DATABASE_SSL` | Use SSL for the database connection (default `true` for Supabase; set to `false` for a local unencrypted Postgres) |
+   | `DATABASE_SSL_CA` | Path to CA certificate for database TLS verification (Supabase: download from Project → Database → SSL) |
+   | `VITE_API_BASE_URL` | API base URL for the client (leave empty in development; Vite forwards `/api` to the server) |
+   | `ADMIN_EMAILS` | Comma-separated emails that are always admins (for recovery; see "Locked out / first admin") |
+   | `ALLOWED_IPS` | Comma-separated IPs/CIDR ranges (office network allowlist; see "Running it for the office") |
+   | `TRUST_PROXY` | Reverse proxy configuration (see "Running it for the office") |
 
    `.env` holds your database password. Never share it or commit it to git.
 
@@ -230,11 +283,12 @@ You need:
    npm run db:migrate
    ```
 
-   You should see `Applied 2 migration(s)`. The database starts completely empty.
+   You should see `Applied N migration(s)`, naming each one. The database starts completely empty.
 
 5. **Turn off public sign-ups.** Supabase → Authentication → Sign In / Providers
-   → switch off **Allow new users to sign up**. Anyone with an account can see
-   and change everything, so only accounts you create should exist.
+   → switch off **Allow new users to sign up**. Accounts created outside this app
+   default to **Scanner with no department** (they can sign in but see no data
+   until an admin assigns them). Only accounts you create should exist.
 
 6. **Create the first admin account.** Supabase → Authentication → Users →
    **Add user** → *Create new user*, tick **Auto Confirm User**. Then sign in to
@@ -284,12 +338,13 @@ Run these from the project's main folder (the one containing this file).
 | Command | What it does |
 |---|---|
 | `npm run dev` | Starts the app: the server on port 3001 and the pages on http://localhost:5173 |
-| `npm run db:migrate` | Creates or updates the database tables. Safe to run again - it only applies what's new and never touches your data |
-| `npm run db:seed` | Loads example data to try the app with |
+| `npm run db:migrate` | Creates or updates the database tables. Safe to run again — it only applies what's new and never touches your data |
+| `npm run db:seed` | Loads example data (40 devices, 30 employees, 37 handouts, 4 audit sessions with ~31 items and 18 scanned) to try the app with |
 | `npm run db:seed:remove` | Removes the example data; real data is left alone |
-| `npm run user:role -- <email> <admin\|head\|scanner>` | Sets an existing account's role directly in the database - for bootstrapping the first admin, or fixing one by hand |
-| `npm test` | Runs all the automated tests (no database or internet needed) |
+| `npm run user:role -- <email> <admin\|head\|scanner>` | Sets an existing account's role directly in the database — for bootstrapping the first admin, or fixing one by hand |
+| `npm test` / `npm run test:e2e` | Run the automated tests. The tests are kept on the developer's machine and aren't part of this repository - see [Testing](#testing) |
 | `npm run build` | Builds the pages for production into `client/dist/` |
+| `npm start` | Starts the server only. Serves `client/dist/` if it exists (run `npm run build` first). See [10. Running it for the office](#10-running-it-for-the-office) |
 
 ---
 
@@ -297,14 +352,59 @@ Run these from the project's main folder (the one containing this file).
 
 | Problem | Fix |
 |---|---|
-| `getaddrinfo ENOTFOUND db.<something>.supabase.co` | `DATABASE_URL` is using the *Direct connection*, which needs IPv6. Use the **Session pooler** string instead - its address ends in `pooler.supabase.com` and its username is `postgres.<project-ref>`. |
-| `password authentication failed` | Wrong database password in `DATABASE_URL`. Reset it under Project Settings → Database and use letters and numbers only - symbols like `@` break the connection string. |
+| `getaddrinfo ENOTFOUND db.<something>.supabase.co` | `DATABASE_URL` is using the *Direct connection*, which needs IPv6. Use the **Session pooler** string instead — its address ends in `pooler.supabase.com` and its username is `postgres.<project-ref>`. |
+| `password authentication failed` | Wrong database password in `DATABASE_URL`. Reset it under Project Settings → Database and use letters and numbers only — symbols like `@` break the connection string. |
 | `The tables do not exist yet` | Run `npm run db:migrate`. |
-| Sign-in says *That email and password do not match*, even with the right password | First check `SUPABASE_URL` is exactly `https://<ref>.supabase.co` - anything after it, such as `/rest/v1/`, sends sign-in to the wrong place. Then check the user exists under Supabase → Authentication → Users and is confirmed. Reset the password there if needed - the app has no "forgot password" screen. |
+| `The database is out of date` | Run `npm run db:migrate`. The server also logs which migrations are missing at startup. |
+| Sign-in says *That email and password do not match*, even with the right password | First check `SUPABASE_URL` is exactly `https://<ref>.supabase.co` — anything after it, such as `/rest/v1/`, sends sign-in to the wrong place. Then check the user exists under Supabase → Authentication → Users and is confirmed. Reset the password there if needed. |
 | Sign-in says *Could not reach the sign-in service* | No internet connection, Supabase is down, or the address in `SUPABASE_URL` has a typo. |
+| Sign-in shows *Account disabled* | Your user account has been deactivated by an admin. Contact them to reactivate you. |
 | Sent back to the sign-in page unexpectedly | Your session expired or was revoked. Sign in again. |
-| Everything shows as "available" after importing | Import doesn't record who holds what - issue each held device with its real handout date. See [Importing spreadsheets](#importing-spreadsheets). |
-| `Missing environment variables` | `.env` is missing or incomplete - see step 3 of setup. |
+| Everything shows as "available" after importing devices | Import doesn't record who holds what — issue each held device with its real handout date. See [Importing spreadsheets](#importing-spreadsheets). |
+| Startup warning: `SUPABASE_SERVICE_ROLE_KEY is not set` | The **Register** page will answer 503 REGISTRATION_UNAVAILABLE. Add it to `.env` (from Supabase → Project Settings → API Keys → service_role) and restart if you need to create accounts from the app. Without it, create accounts in Supabase and assign roles/departments on the Users page. |
+| `ALLOWED_IPS is empty. AKM refuses to start exposed...` | You're trying to start the app with a non-loopback `HOST` or `TRUST_PROXY` set, but no `ALLOWED_IPS`. Set `ALLOWED_IPS` in `.env` before exposing the app, or run locally with `HOST=127.0.0.1` (the default). |
+| Network access blocked; browser shows "Access Restricted" | Your IP is not in `ALLOWED_IPS`. This is intentional — only office IPs are allowed. If you're in the office, ask your admin to check the allowlist. See [Running it for the office](#10-running-it-for-the-office). |
+| `Missing environment variables` | `.env` is missing or incomplete — see step 3 of setup. |
+| Nobody can sign in as an admin | See [Locked out / first admin](#locked-out--first-admin) below. |
+| Session deletion fails with "Too many attempts" | You've entered the wrong password 5 times in 15 minutes. Wait 15 minutes and try again. |
+| Session export is very slow for large sessions | Exporting 10,000+ items takes a few seconds (CPU-bound xlsx generation). This is normal. Rate limit: 10 exports per 60 seconds per user. |
+
+### Locked out / first admin
+
+**When does this happen?** Re-creating a user in Supabase (Authentication → Users → delete, then add back) gives it a **new** id. The app signs that id in as a department-less scanner — it has no way to know this is "the same person" as before. Their old profile (still admin) is orphaned, belonging to an id nobody can sign in as any more. If that was the only admin, nobody can reach the Users page to fix it.
+
+**Two ways out:**
+
+#### 1. `ADMIN_EMAILS` (recommended, fastest)
+
+Add the locked-out address to `ADMIN_EMAILS` in `.env` (comma-separated for multiple):
+```env
+ADMIN_EMAILS=you@adspark.ph, backup@adspark.ph
+```
+Restart the server. That email is promoted to admin automatically the next time it signs in — no database access needed.
+
+**Security check:** This only works while Supabase has email confirmation enabled (it usually does by default). The server checks this at startup and logs what it found:
+- **"Confirm email" must be ON** in Supabase → Authentication → Providers → Email
+- If it's off, the server refuses to honour `ADMIN_EMAILS` at all and logs a warning
+- **Public sign-ups should be OFF** (though not strictly required if email confirmation is on)
+
+The server makes one Supabase API call at startup to verify email confirmation is enabled, not a database read. A misconfigured project will be visible in the startup log immediately, not a silent security hole.
+
+#### 2. `npm run user:role` (if no database access via ADMIN_EMAILS)
+
+1. Have the locked-out user sign in at least once (so their profile row exists in the database)
+2. Run from the project root:
+   ```
+   npm run user:role -- you@adspark.ph admin
+   ```
+3. Restart the app or sign in again — the user is now admin
+
+**After either method:**
+
+The user is now admin and can use the Users page to fix things:
+- **Deactivate the orphaned old profile** (it belongs to an id that can't sign in, so it's dead weight, not a security risk)
+- If you were trying out the app, run `npm run db:seed:remove` to remove example staff
+- Once you're back in and the orphaned profile is dealt with, you can remove `ADMIN_EMAILS` from `.env` if you want (the admin role is saved in the database, not something `ADMIN_EMAILS` keeps granting)
 
 ---
 
@@ -316,37 +416,269 @@ server/                Express 5 + Zod - the API and every business rule
   src/services/        the rules, testable without HTTP
   src/routes/          thin HTTP layer
   src/db/              connection, migration runner, example data
-  test/                API and database tests
-supabase/migrations/   the database schema (SQL)
-docs/superpowers/      design spec and plans
+  src/lib/             access control, errors, rate limits, IP allowlist, utilities
+  src/middleware/      auth, role loading, network restriction, error handler
+supabase/migrations/   the database schema (SQL). Four applied migrations:
+                       20260923000000 (custody), 20260924000100 (roles/depts),
+                       20260925000100 (sessions/items), 20260926000100 (scans)
 ```
 
-- The browser only ever talks to the Express API (`/api/...`); it never touches
-  the database directly and holds no database credentials.
-- The one guarantee that must hold under concurrency - a device has at most one
-  open handout - is a unique index in the database, not application code.
-- Every JSON response is `{ "data": ... }` or
-  `{ "error": { "code", "message", "details" } }` (the CSV export is the one
-  non-JSON endpoint).
-- **Tests need no database or Supabase account.** Each test file starts its own
-  in-memory Postgres ([PGlite](https://pglite.dev)) with the real migrations
-  applied. The client's screen tests run against the real API, not a mock.
+### Architecture
 
-The full design, data model and API contract are in
-[docs/superpowers/specs/2026-09-23-device-handout-tracker-design.md](docs/superpowers/specs/2026-09-23-device-handout-tracker-design.md).
+Two modules share login, roles, and departments:
+
+1. **Custody Module** (Device Handout Tracker): Devices, Employees, Handouts, Import
+   - Tracks who holds which device and since when
+   - Existing module; Admin + Head roles
+
+2. **Audit Module** (AKM): Sessions, Items, Scans, Inventory, Archive, Export
+   - Periodic scan audits — is every item on this spreadsheet physically here?
+   - Eight phases, all implemented: sessions → Excel import → scanning → archive
+
+Both modules:
+- Use the same `profiles` table for roles (Admin, Head, Scanner)
+- Use `departments` to scope access
+- Share the same login, session handling, and API error envelope
+
+### Key Patterns
+
+- The browser only ever talks to the Express API (`/api/...`); it never touches
+  the database directly and holds no credentials.
+- Business rules enforced on the SERVER and in database constraints. Hiding a
+  button is not enough.
+- Concurrency invariants: unique indexes and atomic conditional UPDATEs (e.g. a
+  device can never be with two people at once, a scan can only claim pending
+  items).
+- Every JSON response is `{ "data": ... }` or `{ "error": { "code", "message", "details" } }`,
+  except two file downloads: `/api/export/assignments` (CSV) and
+  `/api/sessions/:id/export` (`.xlsx`).
+- Role and department are read from `profiles` table on **every request** (never
+  from token `user_metadata`), via `loadProfile` middleware.
+- Session writeability: every write to a session or its items goes through
+  `assertSessionWritable()` — requires active status and department access.
+
+### Testing
+
+The automated tests, their fixtures and configs are kept locally and are
+git-ignored, so they aren't in this repository. On a machine that has them:
+
+- **Server tests**: `npm test --workspace server` (vitest + in-process PGlite + fake auth)
+- **Client tests**: `npm test --workspace client` (vitest + jsdom + real API from startTestServer)
+- **E2E tests**: `npm run test:e2e` (Playwright, Chromium, isolated PGlite + fake auth)
+- **What tests can't prove**: PGlite serialises all calls onto one connection, so
+  `Promise.all` concurrency tests ("two scans of the same code at once") run
+  sequentially. They prove logic is idempotent, not that it survives real row-lock
+  contention. That guarantee rests on Postgres READ COMMITTED semantics in
+  production (e.g., `FOR UPDATE` locks, `ADMIN_EMAILS` atomic check-and-set).
 
 ---
 
 ## 9. Current limits
 
-Things this version deliberately doesn't do yet:
+Things this version deliberately doesn't do:
 
-- **It runs on one computer.** `npm run dev` serves the app on that machine only.
-  Making it reachable by the rest of the office - or online - needs a production
-  setup that hasn't been built yet.
-- **No office-network restriction.** Unlike AKM, access isn't limited to the
-  office network; sign-in is the only protection. Worth adding before putting
-  it online.
-- **No password reset screen.** Admins reset passwords in Supabase.
-- **Laptops and mobiles only**, with core details - no specs, warranty, purchase
-  cost, or QR codes (AKM already handles QR scanning).
+- **No password reset screen.** Admins reset passwords in Supabase → Authentication → Users → reset password
+- **Laptops and mobiles only** (custody module) — no specs, warranty, purchase cost (AKM session items are flexible)
+- **Cannot reopen a completed session** — create a new session if needed
+- **Revoking Supabase sessions after destructive operations** — user's token stays valid after session delete (consider server-side revocation if needed)
+
+For running it beyond your own machine (office-network restriction, HTTPS,
+`npm run build`), see [11. Running it for the office](#11-running-it-for-the-office).
+
+---
+
+## 10. Upgrading an existing install
+
+If you already have the app running with real data:
+
+1. **Back up your database** — save a copy from Supabase (Project → Backups)
+2. **Pull the latest code** and install
+   ```
+   git pull origin main
+   npm install
+   ```
+3. **Run migrations** (safe to run again — applies only new migrations)
+   ```
+   npm run db:migrate
+   ```
+4. **Set `ADMIN_EMAILS` if needed** to recover if admins are locked out (requires server restart)
+   ```
+   # In .env:
+   ADMIN_EMAILS=admin@adspark.ph
+   ```
+5. **Rebuild and restart**
+   ```
+   npm run build
+   npm start
+   ```
+   Open **http://127.0.0.1:3001** (or your reverse proxy's hostname)
+
+6. **After recovery, clean up**
+   - Run `npm run db:seed:remove` to remove example devices, employees, and profiles
+   - Deactivate the orphaned old admin profile on the **Users** page if you recovered with `ADMIN_EMAILS`
+   - Create departments BEFORE creating AKM sessions (the New Session dialog requires at least one)
+   - Optionally set `SUPABASE_SERVICE_ROLE_KEY` for the Register page; otherwise create accounts in Supabase and assign roles/departments on the **Users** page
+   - Once stable, remove `ADMIN_EMAILS` from `.env` if you added it (the role is saved in the database now)
+   - If you set `ADMIN_EMAILS` while already signed in, sign out and back in (the role is cached for ~60 seconds)
+   - Scanners and phones on the office network can't reach a loopback-only server (`HOST=127.0.0.1`); see [11. Running it for the office](#11-running-it-for-the-office)
+
+---
+
+## 11. Running it for the office
+
+By default (`npm run dev`, or `npm start` with no extra settings) this app only
+answers on `127.0.0.1` - the machine it runs on. Making it reachable by the
+rest of the office (or the internet) needs two more things: an **office-network
+allowlist** (so only office connections get in) and **HTTPS** (the phone
+camera scanner refuses to work over plain HTTP).
+
+### The office-network allowlist (`ALLOWED_IPS`)
+
+Every request - including sign-in - goes through one middleware that checks
+the caller's address against `ALLOWED_IPS` in `.env`: a comma-separated list
+of single IPs and/or CIDR ranges (IPv4 and IPv6). Anyone outside it gets a
+plain **Access Restricted** page (no login form, no app bundle) on every page,
+and a JSON 403 on every `/api/*` call. `GET /api/health` is the one exception,
+so an uptime check or load balancer can always confirm the server is up.
+
+**AKM refuses to start** with `ALLOWED_IPS` empty whenever EITHER of these is
+true, rather than silently listening with no restriction at all:
+- `HOST` is set to anything other than a loopback address (`127.0.0.1`, `::1`,
+  `localhost` - the default), or
+- `TRUST_PROXY` is set at all (a reverse proxy in front is exactly what makes
+  a loopback `HOST` reachable from outside this machine in the first place -
+  see "Cloud hosting" below).
+
+Which addresses to list depends on where this runs (decide this first):
+
+- **Cloud hosting** (a VPS/cloud VM, reached over the internet): list the
+  office's **public** IP(s) - both the primary and backup ISP if there are
+  two, so a failover doesn't lock everyone out.
+  ```
+  ALLOWED_IPS=203.0.113.10, 198.51.100.20
+  ```
+  Most office internet connections have a **dynamic** IPv4 address that can
+  change (a router reboot, the ISP reassigning leases) - when it does, nobody
+  can reach the app until someone updates `ALLOWED_IPS` and restarts the
+  server. Ask the ISP for a **static IP** if this needs to stay up
+  unattended. If the office instead has a stable IPv6 prefix, listing that
+  CIDR is one more option.
+- **Office server** (a machine on the office LAN, reached only from inside
+  it): list the LAN subnet instead.
+  ```
+  ALLOWED_IPS=192.168.1.0/24
+  ```
+
+### `TRUST_PROXY` (only if there is a reverse proxy in front)
+
+If Caddy/nginx/a load balancer sits in front of this app, set `TRUST_PROXY` so
+`ALLOWED_IPS` checks the real visitor, not the proxy. **Prefer `loopback` or
+the proxy's exact IP/CIDR over a bare hop count** - they only trust
+`X-Forwarded-For` from that specific address, whereas a hop count trusts it
+from whoever connects directly, with no check on who that is:
+
+```
+TRUST_PROXY=loopback           # preferred: the proxy runs on the SAME machine (127.0.0.1)
+TRUST_PROXY=10.0.0.5           # preferred: the proxy's exact IP (a separate load balancer)
+TRUST_PROXY=1                  # a bare hop count - only as safe as whatever can connect directly
+```
+
+A bare hop count (`TRUST_PROXY=1`, `2`, ...) is fine when `HOST` is loopback
+(only a same-machine process can connect directly at all), but on a
+non-loopback `HOST` it lets anyone on the network claim any address via
+`X-Forwarded-For` and walk straight past `ALLOWED_IPS` - the server logs a
+warning at startup if it sees that combination.
+
+**Never set `TRUST_PROXY=true`** - the server refuses to start with that
+value. `true` trusts the `X-Forwarded-For` header from anyone, which means
+anyone could type in a fake office IP and walk straight past `ALLOWED_IPS`.
+Leave `TRUST_PROXY` unset entirely when there is no reverse proxy - every
+request then uses its real TCP connection address, and any `X-Forwarded-For`
+header a caller sends is ignored. Setting `TRUST_PROXY` at all requires
+`ALLOWED_IPS` too (see above) - a proxy in front is one more way this app
+becomes reachable from outside this machine.
+
+### HTTPS
+
+The phone camera (QR scanning, Phase 4) only works over HTTPS - browsers
+refuse camera access on a plain `http://` origin except on `localhost`. Put a
+reverse proxy in front that terminates TLS:
+
+- **Cloud hosting:** Caddy or nginx with a normal certificate (e.g. Let's
+  Encrypt's HTTP-01), reverse-proxying to this app on `127.0.0.1:3001`. Use
+  `TRUST_PROXY=loopback` (Caddy/nginx run on the same machine) or
+  `TRUST_PROXY=1` (a separate load balancer).
+- **Office server (LAN):** a public CA can't issue a certificate for a bare
+  LAN IP, so give the machine a real hostname (e.g. `akm.adspark.internal`)
+  and use a proxy that can get a certificate for it without exposing the
+  server to the internet - Caddy with DNS-01 validation is the simplest way
+  (it proves ownership of the domain via a DNS record, not an inbound HTTP
+  request). `TRUST_PROXY=loopback` again, since Caddy runs on the same box.
+
+### Single process requirement
+
+**Run exactly ONE server process.** The rate limiters (scans, export guard, delete password attempts) and the export guard are in-memory,
+so don't use cluster mode or multiple instances — they wouldn't share state and would allow budget overruns.
+
+Keep the server running with a supervisor:
+- **Linux:** `systemd` service or `pm2 start --no-autorestart --attach`
+- **Windows:** `NSSM` (Non-Sucking Service Manager) in fork mode
+- **Any system:** `pm2 in fork mode, not cluster mode
+
+On a crash or restart, the supervisor restarts the process. In-memory state (rate limit buckets, export single-flight guard) resets, which is fine: previous limits are forgiven once the server comes back.
+
+### Supabase authentication rate limits
+
+Every sign-in, refresh, and delete-session password check goes through the server's one IP (the Supabase `signIn()` API call).
+Supabase enforces a rate limit per IP. If the office hits 429s at login, raise the limit in Supabase → Authentication → Rate Limits.
+
+### npm install needs internet (SheetJS)
+
+`npm install` downloads SheetJS from `cdn.sheetjs.com`. Ensure your build environment can reach it; it's not mirrored on npm.
+
+### Publishing the address
+
+Publish only what people need to type: an **A record** (`akm.adspark.ph` →
+the office's public IP) for cloud hosting, or the internal hostname for an
+office server. Don't publish more than that - the allowlist is the actual
+protection, not secrecy of the address.
+
+### Putting it together
+
+```
+npm run db:migrate       # ALWAYS run this BEFORE starting the new code -
+                          # migrations are additive and safe to run ahead of
+                          # a deploy, but the new code may expect columns an
+                          # old database doesn't have yet.
+npm run build             # builds client/dist
+npm start                 # NODE serves both the API and client/dist together
+```
+
+Open **http://127.0.0.1:3001** (or your reverse proxy's hostname if using Caddy/nginx).
+
+`npm start` (`server/src/index.js`) serves the built client itself once
+`client/dist` exists (`npm run build` first) - one process, one middleware
+order protects both the pages and the API. If `client/dist` is missing, it
+logs a reminder and keeps serving the API only, exactly like `npm run dev`
+today.
+
+Example `.env` additions for each scenario:
+
+```
+# Cloud hosting, behind Caddy/nginx on the same machine, primary + backup ISP
+HOST=127.0.0.1
+ALLOWED_IPS=203.0.113.10, 198.51.100.20
+TRUST_PROXY=loopback
+
+# Office server: Caddy on the same machine is the ONLY thing the LAN can reach
+# (it listens on 443 with the DNS-01 certificate and forwards to
+# 127.0.0.1:3001). Node itself stays on loopback, exactly like the cloud recipe.
+HOST=127.0.0.1
+ALLOWED_IPS=192.168.1.0/24
+TRUST_PROXY=loopback
+```
+
+Don't set `HOST=0.0.0.0` on an office server that has Caddy in front: it opens
+Node's own plain-HTTP port to every device on the LAN alongside Caddy, so
+sign-ins and data would cross the network unencrypted, and phone cameras
+refuse to work over plain `http://`.

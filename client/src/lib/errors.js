@@ -30,11 +30,20 @@ const FALLBACKS = {
   SESSION_NOT_ACTIVE: 'This session is completed and read-only.',
   NO_DEPARTMENT: 'You are not assigned to a department yet.',
   ITEM_NOT_SCANNED: 'That item has not been scanned.',
+  CONFIGURED_ADMIN: 'This account is an admin because it is listed in ADMIN_EMAILS on the server.',
+  DATABASE_OUT_OF_DATE: 'The database is out of date. Ask IT to run the database migrations.',
+  DUPLICATE_ITEM_CODE: 'That item code is already in this session.',
+  BAD_RESPONSE: 'The server sent a response the app could not read. Please try again.',
+  WRONG_PASSWORD: 'That password is not correct.',
+  TOO_MANY_ATTEMPTS: 'Too many attempts. Wait a while and try again.',
+  SESSION_FULL: 'This session is at its item limit. Split the file, or start a new session.',
+  EXPORT_BUSY: 'Another export is being prepared. Try again in a few seconds.',
 }
 
 // Forms mark individual inputs for these codes, not just the banner.
 const FIELD_CODES = new Set([
   'VALIDATION_ERROR', 'DUPLICATE_ASSET_TAG', 'DUPLICATE_SERIAL', 'DUPLICATE_EMAIL', 'DUPLICATE_DEPARTMENT',
+  'DUPLICATE_ITEM_CODE', 'WRONG_PASSWORD',
 ])
 
 export function messageFor(error) {

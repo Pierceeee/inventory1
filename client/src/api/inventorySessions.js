@@ -1,4 +1,5 @@
-import { request } from './client.js'
+import { errorFrom, fetchWithAuth, request } from './client.js'
+import { exportFileName, fileNameFromContentDisposition, saveBlob } from '../lib/download.js'
 
 export const listSessions = (params) => request('/sessions', { params })
 export const getSession = (id) => request(`/sessions/${id}`)
@@ -12,3 +13,19 @@ export const clearSessionItems = (id) =>
 export const scanItem = (id, code) => request(`/sessions/${id}/scan`, { method: 'POST', body: { code } })
 export const undoScan = (id, itemId) => request(`/sessions/${id}/items/${itemId}/undo`, { method: 'POST' })
 export const listRecentScans = (id, params) => request(`/sessions/${id}/scans`, { params })
+
+/** Downloads the session's .xlsx export and saves it - bypasses `request()`'s
+ *  JSON envelope entirely, same as `exports.js`'s CSV download. Prefers the
+ *  server's own file name (from Content-Disposition) over a client-computed
+ *  guess, so it always matches exactly what the server named it. */
+export async function downloadSessionExport(session) {
+  const response = await fetchWithAuth(`/sessions/${session.id}/export`)
+  if (!response.ok) throw await errorFrom(response)
+  const fileName = fileNameFromContentDisposition(response.headers.get('content-disposition'))
+    ?? exportFileName(session.name)
+  const blob = await response.blob()
+  saveBlob(blob, fileName)
+  return { fileName }
+}
+
+export const deleteSession = (id, password) => request(`/sessions/${id}`, { method: 'DELETE', body: { password } })

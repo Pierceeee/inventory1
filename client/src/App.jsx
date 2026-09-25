@@ -15,9 +15,11 @@ import LoginPage from './pages/LoginPage.jsx'
 import SessionsPage from './pages/SessionsPage.jsx'
 import SessionDetailPage from './pages/SessionDetailPage.jsx'
 import PrintLabelsPage from './pages/PrintLabelsPage.jsx'
+import InventoryPage from './pages/InventoryPage.jsx'
 import UsersPage from './pages/UsersPage.jsx'
 import RegisterPage from './pages/RegisterPage.jsx'
 import DepartmentsPage from './pages/DepartmentsPage.jsx'
+import ArchivePage from './pages/ArchivePage.jsx'
 import { CUSTODY_ROLES } from './lib/roles.js'
 
 export default function App() {
@@ -41,6 +43,7 @@ export default function App() {
           <Route path="employees/:id" element={<EmployeeDetailPage />} />
           <Route path="handouts" element={<HandoutsPage />} />
           <Route path="import" element={<ImportPage />} />
+          <Route path="inventory" element={<InventoryPage />} />
         </Route>
 
         <Route element={<RequireRole roles={['admin']}><Outlet /></RequireRole>}>
@@ -48,6 +51,7 @@ export default function App() {
           <Route path="users" element={<UsersPage />} />
           <Route path="users/register" element={<RegisterPage />} />
           <Route path="departments" element={<DepartmentsPage />} />
+          <Route path="archive" element={<ArchivePage />} />
           <Route path="sessions/:id/labels" element={<PrintLabelsPage />} />
         </Route>
       </Route>

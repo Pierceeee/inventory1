@@ -2,7 +2,10 @@
   "name": "inventory",
   "private": true,
   "type": "module",
-  "workspaces": ["client", "server"],
+  "workspaces": [
+    "client",
+    "server"
+  ],
   "scripts": {
     "dev": "concurrently -n server,client -c blue,magenta \"npm run dev --workspace server\" \"npm run dev --workspace client\"",
     "build": "npm run build --workspace client",
@@ -12,9 +15,12 @@
     "db:seed:remove": "npm run db:seed:remove --workspace server",
     "user:role": "npm run user:role --workspace server --",
     "test": "npm run test --workspace server && npm run test --workspace client",
-    "test:watch": "npm run test:watch --workspace client"
+    "test:watch": "npm run test:watch --workspace client",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
-    "concurrently": "^10.0.5"
+    "@playwright/test": "^1.58.0",
+    "concurrently": "^10.0.5",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

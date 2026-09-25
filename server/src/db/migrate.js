@@ -44,3 +44,26 @@ export async function applyMigrations(db, dir = MIGRATIONS_DIR) {
   }
   return done
 }
+
+/**
+ * The migration versions on disk not yet recorded in schema_migrations, in
+ * filename order - for a startup log that names exactly what is missing
+ * (README "Locked out" / DATABASE_OUT_OF_DATE), rather than waiting for the
+ * first request that hits a missing table or column. A missing
+ * schema_migrations table (nothing has ever been applied) means everything
+ * is pending, not an error.
+ */
+export async function pendingMigrations(db, dir = MIGRATIONS_DIR) {
+  const files = (await fs.readdir(dir)).filter((f) => f.endsWith('.sql')).sort()
+  const versions = files.map((f) => f.replace(/\.sql$/, ''))
+
+  let applied = new Set()
+  try {
+    const { rows } = await db.query('select version from public.schema_migrations')
+    applied = new Set(rows.map((r) => r.version))
+  } catch (err) {
+    if (err.code !== '42P01') throw err
+  }
+
+  return versions.filter((version) => !applied.has(version))
+}

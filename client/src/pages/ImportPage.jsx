@@ -1,116 +1,160 @@
-import { useState } from 'react'
-import Papa from 'papaparse'
+import { useRef, useState } from 'react'
 import PageHeader from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import FilterChips from '../components/ui/FilterChips.jsx'
 import ErrorBanner from '../components/ui/ErrorBanner.jsx'
-import ColumnMapper from '../components/imports/ColumnMapper.jsx'
+import DropZone from '../components/sessions/DropZone.jsx'
 import ImportPreview from '../components/imports/ImportPreview.jsx'
+import RecordPreview from '../components/imports/RecordPreview.jsx'
 import { importDevices, importEmployees } from '../api/imports.js'
+import { parseSpreadsheet, readFileAsArrayBuffer } from '../lib/spreadsheet.js'
+import { mapDevices, mapEmployees } from '../lib/recordImport.js'
+import { ApiError } from '../lib/errors.js'
 
-const KINDS = [
-  { value: 'devices', label: 'Devices' },
-  { value: 'employees', label: 'Employees' },
-]
+// A local (never-sent-to-the-server) file problem, shaped like an ApiError so
+// ErrorBanner shows its own message instead of the generic network fallback.
+const localError = (message) => new ApiError({ status: 0, code: 'INVALID_FILE', message })
 
-const FIELDS = {
-  devices: [
-    { key: 'asset_tag', label: 'Asset tag', required: true },
-    { key: 'type', label: 'Type', required: true, hint: 'Values must read laptop or mobile.' },
-    { key: 'brand', label: 'Brand' },
-    { key: 'model', label: 'Model' },
-    { key: 'serial_number', label: 'Serial number' },
-    { key: 'os', label: 'Operating system', hint: 'macos, windows, ios, or android.' },
-    { key: 'notes', label: 'Notes' },
-  ],
-  employees: [
-    { key: 'full_name', label: 'Full name', required: true },
-    { key: 'email', label: 'Email' },
-    { key: 'department', label: 'Department' },
-  ],
+const MAX_ROWS = 5000 // server/src/validation.js importBatch
+
+const oneLine = (text) => String(text ?? '').replace(/\n/g, ' · ')
+
+/** Everything that differs between the two kinds: how the file is read,
+ *  where it is sent, how its rows are previewed and how each field's source
+ *  is described. */
+const KINDS = {
+  devices: {
+    label: 'Devices',
+    noun: ['device', 'devices'],
+    map: mapDevices,
+    send: importDevices,
+    columns: [
+      { key: 'asset_tag', header: 'Asset tag', code: true, value: (r) => r.asset_tag },
+      { key: 'type', header: 'Type', value: (r) => r.type },
+      { key: 'brand', header: 'Brand', value: (r) => r.brand },
+      { key: 'model', header: 'Model', value: (r) => r.model },
+      { key: 'serial_number', header: 'Serial number', value: (r) => r.serial_number },
+      { key: 'os', header: 'OS', value: (r) => r.os },
+      { key: 'notes', header: 'Notes', value: (r) => oneLine(r.notes) },
+    ],
+    fields: [
+      ['asset_tag', 'Asset tag'],
+      ['type', 'Type', ({ typeDefault, typeSignals }) => (typeDefault === 'mobile'
+        ? `mobile, because this is a phone sheet (${typeSignals.join(', ')}). A row whose model is a laptop is saved as laptop`
+        : "worked out from each row's OS and model: laptop, unless it looks like a phone or tablet")],
+      ['brand', 'Brand', () => 'worked out from the model where the maker is clear'],
+      ['model', 'Model'],
+      ['serial_number', 'Serial number'],
+      ['os', 'Operating system'],
+      ['notes', 'Notes'],
+    ],
+    extrasLabel: 'Also kept in Notes, as "column: value"',
+  },
+  employees: {
+    label: 'Employees',
+    noun: ['employee', 'employees'],
+    map: mapEmployees,
+    send: importEmployees,
+    columns: [
+      { key: 'full_name', header: 'Full name', code: true, value: (r) => r.full_name },
+      { key: 'email', header: 'Email', value: (r) => r.email },
+      { key: 'department', header: 'Department', value: (r) => r.department },
+    ],
+    fields: [['full_name', 'Full name'], ['email', 'Email'], ['department', 'Department']],
+    extrasLabel: 'Not saved (employees have no field for these)',
+  },
 }
 
-/** Guess a mapping by matching header names loosely against our field keys. */
-function guessMapping(fields, headers) {
-  const norm = (s) => s.toLowerCase().replace(/[^a-z]/g, '')
-  const mapping = {}
-  for (const field of fields) {
-    const target = norm(field.key)
-    const hit = headers.find((h) => norm(h) === target)
-      ?? headers.find((h) => norm(h).includes(target) || target.includes(norm(h)))
-    if (hit) mapping[field.key] = hit
-  }
-  return mapping
+const CHIPS = Object.entries(KINDS).map(([value, k]) => ({ value, label: k.label }))
+
+/** Which column fills each field - stated, never asked. A field no column
+ *  fills either says how it is worked out (`workedOut(mapped)`) or that it
+ *  is not in the file. */
+function ColumnUse({ kind, mapped }) {
+  const { fields, extrasLabel } = KINDS[kind]
+  const { sources, extras } = mapped
+  return (
+    <ul aria-label="How your columns are used" className="flex flex-col gap-1 text-sm text-slate-600">
+      {fields.map(([field, label, workedOut]) => (
+        <li key={field}>
+          <span className="font-medium text-slate-900">{label}</span>
+          {sources[field]
+            ? <> from <strong className="font-medium text-slate-900">{sources[field]}</strong></>
+            : <>: {workedOut?.(mapped) ?? 'not in this file'}</>}
+        </li>
+      ))}
+      {extras.length > 0 && (
+        <li>
+          <span className="font-medium text-slate-900">{extrasLabel}:</span> {extras.join(', ')}
+        </li>
+      )}
+    </ul>
+  )
 }
 
 export default function ImportPage() {
   const [kind, setKind] = useState('devices')
   const [fileName, setFileName] = useState('')
-  const [headers, setHeaders] = useState([])
-  const [rawRows, setRawRows] = useState([])
-  const [mapping, setMapping] = useState({})
-  const [preview, setPreview] = useState(null)
+  const [mapped, setMapped] = useState(null)
+  const [check, setCheck] = useState(null)
   const [committed, setCommitted] = useState(null)
   const [error, setError] = useState(null)
   const [busy, setBusy] = useState(false)
+  // Bumped by every reset, so a request still in flight for a file (or kind)
+  // the user has since replaced never lands on the new one.
+  const attempt = useRef(0)
 
-  const fields = FIELDS[kind]
+  const config = KINDS[kind]
+  const count = (n) => `${n} ${config.noun[n === 1 ? 0 : 1]}`
 
   function reset() {
-    setFileName(''); setHeaders([]); setRawRows([]); setMapping({})
-    setPreview(null); setCommitted(null); setError(null)
+    attempt.current += 1
+    setFileName(''); setMapped(null); setCheck(null); setCommitted(null); setError(null); setBusy(false)
   }
 
-  function handleFile(e) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    reset()
-    setFileName(file.name)
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: ({ data, meta }) => {
-        const cols = (meta.fields ?? []).filter(Boolean)
-        setHeaders(cols)
-        setRawRows(data)
-        setMapping(guessMapping(fields, cols))
-      },
-      error: (err) => setError(err),
-    })
-  }
-
-  const mappedRows = () =>
-    rawRows.map((row) => {
-      const out = {}
-      for (const field of fields) {
-        const column = mapping[field.key]
-        const value = column ? String(row[column] ?? '').trim() : ''
-        out[field.key] = field.key === 'type' || field.key === 'os' ? value.toLowerCase() : value
-      }
-      return out
-    })
-
-  async function run(commit) {
+  async function send(rows, commit) {
+    const mine = attempt.current
     setBusy(true); setError(null)
     try {
-      const send = kind === 'devices' ? importDevices : importEmployees
-      const { data } = await send(mappedRows(), commit)
-      if (commit) { setCommitted(data); setPreview(null) } else { setPreview(data) }
+      const { data } = await config.send(rows, commit)
+      if (mine !== attempt.current) return
+      if (commit) setCommitted(data)
+      else setCheck(data)
     } catch (err) {
-      setError(err)
+      if (mine === attempt.current) setError(err)
     } finally {
-      setBusy(false)
+      if (mine === attempt.current) setBusy(false)
     }
   }
 
-  const missingRequired = fields.filter((f) => f.required && !mapping[f.key])
+  async function handleFile(file) {
+    reset()
+    const mine = attempt.current
+    setFileName(file.name)
+    setBusy(true)
+    try {
+      const buffer = await readFileAsArrayBuffer(file)
+      const parsed = await parseSpreadsheet({ name: file.name, buffer })
+      if (mine !== attempt.current) return
+      const fail = (message) => { setError(localError(message)); setBusy(false) }
+      if (parsed.rows.length === 0) return fail('That file has no rows.')
+      if (parsed.rows.length > MAX_ROWS) {
+        return fail(`That file has ${parsed.rows.length.toLocaleString('en-US')} rows. Import at most 5,000 at a time.`)
+      }
+      const result = config.map(parsed)
+      if (result.error) return fail(result.error)
+      setMapped(result)
+      await send(result.rows, false)
+    } catch (err) {
+      if (mine === attempt.current) { setError(err); setBusy(false) }
+    }
+  }
 
   return (
     <>
       <PageHeader
         title="Import"
-        subtitle="Load your existing spreadsheet. Nothing is saved until you commit."
-        actions={rawRows.length > 0 && <Button variant="secondary" onClick={reset}>Start over</Button>}
+        subtitle="Load your existing spreadsheet as it is. Nothing is saved until you approve it."
       />
 
       <div className="flex flex-col gap-6">
@@ -118,49 +162,50 @@ export default function ImportPage() {
 
         <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
           <p className="mb-3 text-sm font-semibold text-slate-900">1 · What are you importing?</p>
-          <FilterChips label="Import type" options={KINDS} value={kind}
+          <FilterChips label="Import type" options={CHIPS} value={kind}
                        onChange={(v) => { setKind(v); reset() }} />
         </div>
 
         <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
-          <label htmlFor="csv" className="mb-3 block text-sm font-semibold text-slate-900">
-            2 · Choose a CSV file
-          </label>
-          <input id="csv" type="file" accept=".csv,text/csv" onChange={handleFile}
-                 className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-lg file:border-0 file:bg-brand-50 file:px-4 file:py-2 file:text-sm file:font-medium file:text-brand-700 hover:file:bg-brand-100" />
-          {fileName && (
-            <p className="mt-2 text-xs text-slate-500">
-              {fileName} · {rawRows.length} rows · {headers.length} columns
-            </p>
+          <p className="mb-3 text-sm font-semibold text-slate-900">2 · Choose a spreadsheet</p>
+          {mapped ? (
+            <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+              <p className="text-sm text-slate-600">
+                <span className="font-medium text-slate-900">{fileName}</span> · {mapped.rows.length} rows
+              </p>
+              {!committed && (
+                <button type="button" onClick={reset} className="text-xs font-medium text-brand-700 hover:underline">
+                  Choose a different file
+                </button>
+              )}
+            </div>
+          ) : (
+            <DropZone onFile={handleFile} disabled={busy} />
           )}
         </div>
 
-        {headers.length > 0 && (
-          <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
-            <p className="mb-3 text-sm font-semibold text-slate-900">3 · Match your columns</p>
-            <ColumnMapper fields={fields} headers={headers} mapping={mapping} onChange={setMapping} />
-            {missingRequired.length > 0 && (
-              <p className="mt-4 rounded-lg bg-warn-50 px-3 py-2 text-sm text-warn-700">
-                Still needed: {missingRequired.map((f) => f.label).join(', ')}.
-              </p>
-            )}
-            <div className="mt-4">
-              <Button onClick={() => run(false)} disabled={busy || missingRequired.length > 0}>
-                {busy ? 'Checking…' : 'Preview import'}
-              </Button>
-            </div>
-          </div>
-        )}
+        {mapped && !committed && (
+          <div className="flex flex-col gap-4 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+            <p className="text-sm font-semibold text-slate-900">3 · Check it, then import</p>
+            <ColumnUse kind={kind} mapped={mapped} />
 
-        {preview && (
-          <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
-            <p className="mb-3 text-sm font-semibold text-slate-900">4 · Check before committing</p>
-            <ImportPreview result={preview} />
-            <div className="mt-4 flex gap-2">
-              <Button onClick={() => run(true)} disabled={busy || preview.created === 0}>
-                {busy ? 'Importing…' : `Import ${preview.created} ${kind}`}
-              </Button>
-              <Button variant="secondary" onClick={() => setPreview(null)}>Back</Button>
+            {busy && !check && <p role="status" className="text-sm text-slate-500">Checking the file…</p>}
+            {check && <ImportPreview result={check} />}
+
+            <RecordPreview
+              caption={`${config.label} in ${fileName}`}
+              columns={config.columns}
+              rows={mapped.rows}
+              problems={check?.errors}
+            />
+
+            <div className="flex gap-2">
+              {check && (
+                <Button onClick={() => send(mapped.rows, true)} disabled={busy || check.created === 0}>
+                  {busy ? 'Importing…' : `Import ${count(check.created)}`}
+                </Button>
+              )}
+              {!check && !busy && <Button onClick={() => send(mapped.rows, false)}>Try again</Button>}
             </div>
           </div>
         )}
@@ -168,8 +213,8 @@ export default function ImportPage() {
         {committed && (
           <div className="rounded-xl bg-ok-50 p-5 ring-1 ring-inset ring-emerald-200">
             <p className="text-sm font-semibold text-ok-700">
-              Imported {committed.created} {kind}.
-              {committed.skipped > 0 && ` ${committed.skipped} already existed and were skipped.`}
+              Imported {count(committed.created)}.
+              {committed.skipped > 0 && ` ${committed.skipped} skipped as duplicates.`}
             </p>
             <div className="mt-3">
               <Button variant="secondary" onClick={reset}>Import another file</Button>

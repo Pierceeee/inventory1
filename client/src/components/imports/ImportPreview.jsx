@@ -11,7 +11,7 @@ export default function ImportPreview({ result }) {
         </span>
         {skipped > 0 && (
           <span className="rounded-lg bg-warn-50 px-3 py-2 text-sm font-medium text-warn-700">
-            {skipped} already exist — skipped
+            {skipped} skipped as duplicates
           </span>
         )}
         {failed.length > 0 && (
@@ -23,7 +23,7 @@ export default function ImportPreview({ result }) {
 
       {errors.length > 0 && (
         <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
-          <table className="min-w-full divide-y divide-slate-200">
+          <table aria-label="Rows with problems" className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>
                 <th scope="col" className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Row</th>

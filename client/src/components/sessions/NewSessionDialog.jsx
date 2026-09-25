@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import Modal from '../ui/Modal.jsx'
 import Button from '../ui/Button.jsx'
 import Field, { inputClass } from '../ui/Field.jsx'
@@ -19,7 +19,11 @@ export default function NewSessionDialog({ open, onClose }) {
   const create = useCreateSession()
   // Admin-only fetch: departments is an admin route, and a head never needs
   // the list - their own department is fixed and shown as plain text.
-  const { data: departments = [] } = useDepartmentList({ enabled: open && admin })
+  const { data: departments = [], isSuccess: departmentsLoaded } = useDepartmentList({ enabled: open && admin })
+  // The real production starting state (0 departments) leaves an admin
+  // staring at an empty, silent picker otherwise - only once the fetch has
+  // actually finished (never during loading, which is also an empty array).
+  const noDepartments = admin && departmentsLoaded && departments.length === 0
 
   const [name, setName] = useState('')
   const [departmentId, setDepartmentId] = useState('')
@@ -54,7 +58,9 @@ export default function NewSessionDialog({ open, onClose }) {
       footer={
         <>
           <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button onClick={handleSubmit} disabled={!name.trim() || (admin && !departmentId) || create.isPending}>
+          <Button
+            onClick={handleSubmit}
+            disabled={!name.trim() || (admin && !departmentId) || noDepartments || create.isPending}>
             {create.isPending ? 'Creating…' : 'Create session'}
           </Button>
         </>
@@ -69,11 +75,20 @@ export default function NewSessionDialog({ open, onClose }) {
 
         {admin ? (
           <Field id="session-department" label="Department" required error={errors.department_id}>
-            <select id="session-department" className={inputClass} value={departmentId}
-                    onChange={(e) => setDepartmentId(e.target.value)}>
-              <option value="">Choose a department…</option>
-              {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
-            </select>
+            {noDepartments ? (
+              <p id="session-department" className="text-sm text-slate-600">
+                No departments yet — create one first.{' '}
+                <Link to="/departments" className="font-medium text-brand-700 hover:underline">
+                  Go to Departments
+                </Link>
+              </p>
+            ) : (
+              <select id="session-department" className={inputClass} value={departmentId}
+                      onChange={(e) => setDepartmentId(e.target.value)}>
+                <option value="">Choose a department…</option>
+                {departments.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}
+              </select>
+            )}
           </Field>
         ) : (
           <Field id="session-department" label="Department">

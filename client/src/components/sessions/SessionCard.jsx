@@ -6,8 +6,9 @@ import ProgressBar from '../ui/ProgressBar.jsx'
 
 /** One card per session on the Sessions page. Upload is offered only while
  *  the session is active and the signed-in user may manage it - a completed
- *  or archived session is read-only everywhere (D4). */
-export default function SessionCard({ session, canUpload, onUpload }) {
+ *  or archived session is read-only everywhere (D4). `onDelete` is optional -
+ *  only admins get the trash icon. */
+export default function SessionCard({ session, canUpload, onUpload, onDelete }) {
   const { item_count: total, scanned_count: scanned } = session
 
   return (
@@ -19,7 +20,19 @@ export default function SessionCard({ session, canUpload, onUpload }) {
           </Link>
           <p className="mt-0.5 truncate text-xs text-slate-500">{session.department_name}</p>
         </div>
-        <StatusBadge status={session.effective_status} />
+        <div className="flex shrink-0 items-center gap-2">
+          <StatusBadge status={session.effective_status} />
+          {onDelete && (
+            <button
+              type="button"
+              title={`Delete ${session.name}`}
+              aria-label={`Delete ${session.name}`}
+              onClick={() => onDelete(session)}
+              className="rounded p-1 text-slate-400 transition-colors hover:bg-bad-50 hover:text-bad-700">
+              <Icon name="trash" size={16} />
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-1.5">

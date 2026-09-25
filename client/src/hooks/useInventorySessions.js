@@ -1,7 +1,7 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
-  clearSessionItems, completeSession, createSession, getSession, importSessionItems,
-  listRecentScans, listSessionItems, listSessions, scanItem, undoScan, updateSession,
+  clearSessionItems, completeSession, createSession, deleteSession, downloadSessionExport, getSession,
+  importSessionItems, listRecentScans, listSessionItems, listSessions, scanItem, undoScan, updateSession,
 } from '../api/inventorySessions.js'
 
 export const inventorySessionKeys = {
@@ -68,6 +68,15 @@ export const useCompleteSession = () => useSessionMutation((id) => completeSessi
 export const useImportItems = () =>
   useSessionMutation(({ id, ...body }) => importSessionItems(id, body).then((r) => r.data))
 export const useClearItems = () => useSessionMutation((id) => clearSessionItems(id).then((r) => r.data))
+export const useDeleteSession = () =>
+  useSessionMutation(({ id, password }) => deleteSession(id, password).then((r) => r.data))
+
+/** Downloads the .xlsx and saves it - a mutation only for its isPending/error
+ *  state (Export buttons, the delete dialog's backup step); it changes
+ *  nothing server-side, so it never invalidates any query. */
+export function useDownloadSessionExport() {
+  return useMutation({ mutationFn: (session) => downloadSessionExport(session) })
+}
 
 /** The recent-scans list under the scanner panel - its own small query, kept
  *  under the same `['sessions', id, ...]` prefix as the items list. */
