@@ -16,11 +16,17 @@
     "user:role": "npm run user:role --workspace server --",
     "test": "npm run test --workspace server && npm run test --workspace client",
     "test:watch": "npm run test:watch --workspace client",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "lint": "eslint --no-error-on-unmatched-pattern client/src server/src server/scripts e2e playwright.config.js eslint.config.js"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@playwright/test": "^1.58.0",
     "concurrently": "^10.0.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "globals": "^17.12.0",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   }
 }

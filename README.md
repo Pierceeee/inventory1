@@ -343,6 +343,7 @@ Run these from the project's main folder (the one containing this file).
 | `npm run db:seed:remove` | Removes the example data; real data is left alone |
 | `npm run user:role -- <email> <admin\|head\|scanner>` | Sets an existing account's role directly in the database — for bootstrapping the first admin, or fixing one by hand |
 | `npm test` / `npm run test:e2e` | Run the automated tests. The tests are kept on the developer's machine and aren't part of this repository - see [Testing](#testing) |
+| `npm run lint` | Checks the client and server code with ESLint (unused code, React hook rules, `===`). Rules are in `eslint.config.js` |
 | `npm run build` | Builds the pages for production into `client/dist/` |
 | `npm start` | Starts the server only. Serves `client/dist/` if it exists (run `npm run build` first). See [10. Running it for the office](#10-running-it-for-the-office) |
 

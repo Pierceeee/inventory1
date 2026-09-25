@@ -11,7 +11,8 @@ import { upsertProfile } from './profiles.js'
 // embedding/override/isolate controls, word joiner/invisible math operators,
 // and the zero-width no-break space (BOM) - then trim (D1). Every other
 // check on the result happens after this runs, never on the raw body.
-const CONTROL_CHARS = /[\x00-\x1f\x7f\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
+// eslint-disable-next-line no-control-regex
+const CONTROL_CHARS =/[\x00-\x1f\x7f\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g
 export const normaliseCode = (raw) => String(raw ?? '').replace(CONTROL_CHARS, '').trim()
 
 const detailOf = (tx, id) =>
