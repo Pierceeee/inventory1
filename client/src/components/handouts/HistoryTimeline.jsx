@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import Icon from '../ui/Icon.jsx'
 import { formatDateTime, formatDuration } from '../../lib/format.js'
 import { ConditionBadge, CONDITION_RANK, ACCESSORY_LABELS } from './ConditionFields.jsx'
 
@@ -18,14 +19,14 @@ function missingAccessories(entry) {
 export default function HistoryTimeline({ entries = [], perspective = 'device', emptyMessage }) {
   if (entries.length === 0) {
     return (
-      <p className="rounded-xl bg-white px-4 py-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+      <p className="panel px-4 py-8 text-center text-sm text-slate-500">
         {emptyMessage}
       </p>
     )
   }
 
   return (
-    <ol className="flex flex-col gap-px overflow-hidden rounded-xl bg-slate-200 ring-1 ring-slate-200">
+    <ol className="flex flex-col gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 shadow-panel">
       {entries.map((entry) => {
         const open = entry.returned_at === null
         const subject = perspective === 'device'
@@ -58,7 +59,7 @@ export default function HistoryTimeline({ entries = [], perspective = 'device', 
                 <ConditionBadge condition={entry.issued_condition} />
                 {entry.returned_condition && (
                   <>
-                    <span aria-hidden="true">→</span>
+                    <Icon name="arrowRight" size={13} className="text-slate-400" />
                     <ConditionBadge condition={entry.returned_condition} />
                     {CONDITION_RANK[entry.returned_condition] > CONDITION_RANK[entry.issued_condition] && (
                       <span className="font-medium text-warn-700">deteriorated</span>

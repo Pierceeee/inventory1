@@ -5,6 +5,11 @@ import { QueryCache, QueryClient, QueryClientProvider } from '@tanstack/react-qu
 import App from './App.jsx'
 import { ToastProvider } from './components/ui/Toast.jsx'
 import { SessionProvider } from './hooks/useSession.jsx'
+// Overpass, self-hosted: the highway-signage face every screen is set in.
+import '@fontsource/overpass/400.css'
+import '@fontsource/overpass/500.css'
+import '@fontsource/overpass/600.css'
+import '@fontsource/overpass/700.css'
 import './index.css'
 
 const queryClient = new QueryClient({

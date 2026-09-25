@@ -165,7 +165,7 @@ export default function UploadItemsDialog({ session, open, onClose }) {
         )}
 
         {committed && (
-          <div className="rounded-lg bg-ok-50 p-4 ring-1 ring-inset ring-emerald-200">
+          <div className="rounded-lg bg-ok-50 p-4 ring-1 ring-inset ring-ok-200">
             <p className="text-sm font-semibold text-ok-700">
               Added {plural(committed.created)}.
               {committed.skipped > 0 && ` ${committed.skipped} skipped.`}

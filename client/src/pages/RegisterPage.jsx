@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import PageHeader from '../components/layout/PageHeader.jsx'
+import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import Field, { inputClass } from '../components/ui/Field.jsx'
 import PasswordInput from '../components/ui/PasswordInput.jsx'
@@ -57,7 +57,7 @@ export default function RegisterPage() {
   return (
     <>
       <PageHeader
-        back={<Link to="/users" className="mb-1 block text-sm text-brand-700 hover:underline">← Users</Link>}
+        back={<BackLink to="/users">Users</BackLink>}
         title="Register a user"
       />
 

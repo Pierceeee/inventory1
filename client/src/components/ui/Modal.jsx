@@ -15,20 +15,20 @@ export default function Modal({ open, onClose, title, children, footer, wide = f
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-slate-900/40" onClick={onClose} aria-hidden="true" />
+      <div className="absolute inset-0 bg-ink-950/45 motion-safe:animate-scrim-in" onClick={onClose} aria-hidden="true" />
       <div
         ref={panelRef}
         tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`relative w-full ${WIDTHS[wide]} rounded-xl bg-white shadow-xl outline-none`}>
+        className={`relative w-full ${WIDTHS[wide]} rounded-lg bg-white shadow-overlay outline-none motion-safe:animate-overlay-in`}>
         <div className="flex items-start justify-between gap-3 border-b border-slate-200 px-5 py-4">
-          <h2 id={titleId} className="text-base font-semibold text-slate-900">{title}</h2>
+          <h2 id={titleId} className="text-[17px] font-semibold text-ink-900">{title}</h2>
           <button
             type="button"
             onClick={onClose}
-            className="-m-1 rounded p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600">
+            className="-m-1.5 rounded-md p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-ink-900">
             <Icon name="close" title="Close" />
           </button>
         </div>

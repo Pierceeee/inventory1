@@ -54,3 +54,19 @@ export function formatDuration(fromIso, toIso) {
   const years = Math.floor(days / 365.25)
   return years === 1 ? '1 year' : `${years} years`
 }
+
+/** An imported column's key as a readable label: camelCase and snake_case
+ *  keys ("serialNumber", "assigned_to") read as words ("Serial number",
+ *  "Assigned to"). A header written for people ("NEW ASSET TAG",
+ *  "Notes/ Anydesk") is shown exactly as the spreadsheet had it. */
+export function columnLabel(name) {
+  const text = String(name ?? '')
+  const camel = /^[a-z]+(?:[A-Z][a-z0-9]*)+$/.test(text)
+  const snake = /^[a-z0-9]+(?:_[a-z0-9]+)+$/.test(text)
+  if (!camel && !snake) return text
+  const words = text.replace(/_/g, ' ').replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase()
+  return words.charAt(0).toUpperCase() + words.slice(1)
+}
+
+/** Columns holding codes (serials, tags, IMEIs) are set in monospace. */
+export const isCodeColumn = (name) => /serial|code|tag|imei|^s\/?n$/i.test(String(name ?? ''))

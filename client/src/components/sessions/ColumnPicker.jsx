@@ -1,3 +1,5 @@
+import { columnLabel } from '../../lib/format.js'
+
 /** Which columns the item table (and export) show. `columns` is every column
  *  available; `selected` is the subset currently checked. */
 export default function ColumnPicker({ columns, selected, onChange }) {
@@ -28,7 +30,7 @@ export default function ColumnPicker({ columns, selected, onChange }) {
               onChange={() => toggle(name)}
               className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-600"
             />
-            {name}
+            {columnLabel(name)}
           </label>
         ))}
       </div>

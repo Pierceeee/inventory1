@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import PageHeader from '../components/layout/PageHeader.jsx'
+import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import DeviceForm from '../components/devices/DeviceForm.jsx'
 import ErrorBanner from '../components/ui/ErrorBanner.jsx'
 import { useDevice, useCreateDevice, useUpdateDevice } from '../hooks/useDevices.js'
@@ -26,7 +26,7 @@ export default function DeviceFormPage() {
   return (
     <>
       <PageHeader
-        back={<Link to="/devices" className="mb-1 block text-sm text-brand-700 hover:underline">← Devices</Link>}
+        back={<BackLink to="/devices">Devices</BackLink>}
         title={isEdit ? `Edit ${device.asset_tag}` : 'Add device'}
       />
       <DeviceForm

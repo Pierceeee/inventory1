@@ -61,3 +61,9 @@ Thumbs.db
 desktop.ini
 .idea/
 .vscode/
+
+# Design notes (Impeccable) - kept locally like the other planning notes
+PRODUCT.md
+DESIGN.md
+DESIGN.json
+.impeccable/

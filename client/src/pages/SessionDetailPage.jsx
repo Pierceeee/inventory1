@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import PageHeader from '../components/layout/PageHeader.jsx'
+import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import Icon from '../components/ui/Icon.jsx'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
@@ -72,7 +72,7 @@ export default function SessionDetailPage() {
   return (
     <>
       <PageHeader
-        back={<Link to="/sessions" className="mb-1 block text-sm text-brand-700 hover:underline">← Sessions</Link>}
+        back={<BackLink to="/sessions">Sessions</BackLink>}
         title={session.name}
         subtitle={
           <span className="inline-flex items-center gap-2">

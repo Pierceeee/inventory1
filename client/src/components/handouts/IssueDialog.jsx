@@ -161,7 +161,7 @@ export default function IssueDialog({ open, onClose, device, employee, onIssued 
         </Field>
 
         {sameTypeHeld && (
-          <div className="rounded-lg bg-warn-50 p-3 ring-1 ring-inset ring-amber-200">
+          <div className="rounded-lg bg-warn-50 p-3 ring-1 ring-inset ring-warn-200">
             <p className="text-sm text-warn-700">
               <strong className="font-semibold">
                 {chosenEmployee?.full_name} already holds a {chosenDevice?.type}

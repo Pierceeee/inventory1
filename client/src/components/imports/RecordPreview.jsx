@@ -20,7 +20,7 @@ export default function RecordPreview({ caption, columns, rows, problems = [] })
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="max-h-[45vh] overflow-auto rounded-xl ring-1 ring-slate-200">
+      <div className="max-h-[45vh] overflow-auto rounded-lg border border-slate-200">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <caption className="sr-only">{caption}</caption>
           <thead className="sticky top-0 bg-slate-50">

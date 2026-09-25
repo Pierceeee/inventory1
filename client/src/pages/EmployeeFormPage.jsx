@@ -1,5 +1,5 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import PageHeader from '../components/layout/PageHeader.jsx'
+import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import EmployeeForm from '../components/employees/EmployeeForm.jsx'
 import ErrorBanner from '../components/ui/ErrorBanner.jsx'
 import { useEmployee, useCreateEmployee, useUpdateEmployee } from '../hooks/useEmployees.js'
@@ -26,7 +26,7 @@ export default function EmployeeFormPage() {
   return (
     <>
       <PageHeader
-        back={<Link to="/employees" className="mb-1 block text-sm text-brand-700 hover:underline">← Employees</Link>}
+        back={<BackLink to="/employees">Employees</BackLink>}
         title={isEdit ? `Edit ${employee.full_name}` : 'Add employee'}
       />
       <EmployeeForm

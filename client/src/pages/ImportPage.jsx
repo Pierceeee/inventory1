@@ -160,13 +160,13 @@ export default function ImportPage() {
       <div className="flex flex-col gap-6">
         <ErrorBanner error={error} />
 
-        <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+        <div className="panel p-5">
           <p className="mb-3 text-sm font-semibold text-slate-900">1 · What are you importing?</p>
           <FilterChips label="Import type" options={CHIPS} value={kind}
                        onChange={(v) => { setKind(v); reset() }} />
         </div>
 
-        <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+        <div className="panel p-5">
           <p className="mb-3 text-sm font-semibold text-slate-900">2 · Choose a spreadsheet</p>
           {mapped ? (
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
@@ -185,7 +185,7 @@ export default function ImportPage() {
         </div>
 
         {mapped && !committed && (
-          <div className="flex flex-col gap-4 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+          <div className="flex flex-col gap-4 panel p-5">
             <p className="text-sm font-semibold text-slate-900">3 · Check it, then import</p>
             <ColumnUse kind={kind} mapped={mapped} />
 
@@ -211,7 +211,7 @@ export default function ImportPage() {
         )}
 
         {committed && (
-          <div className="rounded-xl bg-ok-50 p-5 ring-1 ring-inset ring-emerald-200">
+          <div className="rounded-lg border border-ok-200 bg-ok-50 p-5">
             <p className="text-sm font-semibold text-ok-700">
               Imported {count(committed.created)}.
               {committed.skipped > 0 && ` ${committed.skipped} skipped as duplicates.`}

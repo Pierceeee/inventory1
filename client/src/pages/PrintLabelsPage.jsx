@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import PageHeader from '../components/layout/PageHeader.jsx'
+import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import Icon from '../components/ui/Icon.jsx'
 import ErrorBanner from '../components/ui/ErrorBanner.jsx'
@@ -53,7 +53,7 @@ export default function PrintLabelsPage() {
     <div>
       <div className="print:hidden">
         <PageHeader
-          back={<Link to={`/sessions/${id}`} className="mb-1 block text-sm text-brand-700 hover:underline">← {session.name}</Link>}
+          back={<BackLink to={`/sessions/${id}`}>{session.name}</BackLink>}
           title="Print QR labels"
           subtitle={session.name}
           actions={<Button onClick={() => window.print()}><Icon name="printer" size={16} /> Print</Button>}

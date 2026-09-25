@@ -20,7 +20,7 @@ export default function DropZone({ onFile, accept = '.xlsx,.xls,.csv', disabled 
       onDragOver={(e) => { e.preventDefault(); if (!disabled) setDragging(true) }}
       onDragLeave={() => setDragging(false)}
       onDrop={handleDrop}
-      className={`flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
+      className={`flex cursor-pointer flex-col items-center gap-2 rounded-lg border-2 border-dashed px-6 py-10 text-center transition-colors ${
         dragging ? 'border-brand-500 bg-brand-50' : 'border-slate-300 bg-slate-50 hover:bg-slate-100'
       } ${disabled ? 'pointer-events-none opacity-50' : ''}`}>
       <Icon name="upload" size={24} className="text-slate-400" />

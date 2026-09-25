@@ -22,7 +22,7 @@ export default function ImportPreview({ result }) {
       </div>
 
       {errors.length > 0 && (
-        <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+        <div className="panel overflow-hidden">
           <table aria-label="Rows with problems" className="min-w-full divide-y divide-slate-200">
             <thead className="bg-slate-50">
               <tr>

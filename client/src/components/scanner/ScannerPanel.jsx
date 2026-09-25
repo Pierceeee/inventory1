@@ -59,7 +59,7 @@ export default function ScannerPanel({ session }) {
   }
 
   return (
-    <div className="mb-6 rounded-xl bg-white ring-1 ring-slate-200">
+    <div className="panel mb-6">
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
@@ -87,7 +87,7 @@ export default function ScannerPanel({ session }) {
           </div>
 
           {accessDenied && (
-            <div role="alert" className="mb-3 rounded-lg bg-bad-50 px-4 py-3 text-sm text-bad-700 ring-1 ring-inset ring-red-200">
+            <div role="alert" className="mb-3 rounded-lg bg-bad-50 px-4 py-3 text-sm text-bad-700 ring-1 ring-inset ring-bad-200">
               You no longer have access to this session.
             </div>
           )}

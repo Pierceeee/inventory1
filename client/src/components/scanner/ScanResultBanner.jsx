@@ -1,9 +1,9 @@
 import { formatDateTime } from '../../lib/format.js'
 
 const TONE = {
-  scanned: 'bg-ok-50 text-ok-700 ring-emerald-200',
-  duplicate: 'bg-warn-50 text-warn-700 ring-amber-200',
-  not_found: 'bg-bad-50 text-bad-700 ring-red-200',
+  scanned: 'bg-ok-50 text-ok-700 ring-ok-200',
+  duplicate: 'bg-warn-50 text-warn-700 ring-warn-200',
+  not_found: 'bg-bad-50 text-bad-700 ring-bad-200',
 }
 
 /** Green/yellow/red result of the last scan (§7). Duplicate names who

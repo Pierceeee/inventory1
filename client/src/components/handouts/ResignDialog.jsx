@@ -56,14 +56,14 @@ export default function ResignDialog({ open, onClose, employee }) {
             </p>
           ) : (
             <>
-              <div className="rounded-lg bg-warn-50 px-3 py-3 text-sm text-warn-700 ring-1 ring-inset ring-amber-200">
+              <div className="rounded-lg bg-warn-50 px-3 py-3 text-sm text-warn-700 ring-1 ring-inset ring-warn-200">
                 <strong className="font-semibold">
                   {held.length} {held.length === 1 ? 'device is' : 'devices are'} still out.
                 </strong>{' '}
                 Resigning does not return them. Return each one here so the record stays accurate.
               </div>
 
-              <ul className="flex flex-col gap-px overflow-hidden rounded-xl bg-slate-200 ring-1 ring-slate-200">
+              <ul className="flex flex-col gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 shadow-panel">
                 {held.map((d) => (
                   <li key={d.assignment_id} className="flex items-center justify-between gap-3 bg-white px-4 py-3">
                     <div>

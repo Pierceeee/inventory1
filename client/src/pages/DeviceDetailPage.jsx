@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import PageHeader from '../components/layout/PageHeader.jsx'
+import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import Modal from '../components/ui/Modal.jsx'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
@@ -41,7 +41,7 @@ export default function DeviceDetailPage() {
   return (
     <>
       <PageHeader
-        back={<Link to="/devices" className="mb-1 block text-sm text-brand-700 hover:underline">← Devices</Link>}
+        back={<BackLink to="/devices">Devices</BackLink>}
         title={device.asset_tag}
         subtitle={[device.brand, device.model].filter(Boolean).join(' ')}
         actions={
@@ -58,7 +58,7 @@ export default function DeviceDetailPage() {
 
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="flex flex-col gap-6 lg:col-span-2">
-          <div className="rounded-xl bg-white p-5 ring-1 ring-slate-200">
+          <div className="panel p-5">
             <div className="mb-4">
               <StatusBadge status={holder ? 'issued' : device.status} />
             </div>
@@ -90,7 +90,7 @@ export default function DeviceDetailPage() {
           </section>
         </div>
 
-        <dl className="flex h-fit flex-col gap-4 rounded-xl bg-white p-5 ring-1 ring-slate-200">
+        <dl className="flex h-fit flex-col gap-4 panel p-5">
           <Detail label="Type" value={device.type === 'laptop' ? 'Laptop' : 'Mobile'} />
           <Detail label="Brand" value={device.brand} />
           <Detail label="Model" value={device.model} />

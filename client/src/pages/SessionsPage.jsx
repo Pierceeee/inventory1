@@ -50,7 +50,7 @@ export default function SessionsPage() {
       />
 
       {!hasDepartment ? (
-        <p className="rounded-xl bg-white p-10 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+        <p className="panel p-10 text-center text-sm text-slate-500">
           You're signed in as {user?.email} ({ROLE_LABELS[profile?.role]}) but you aren't assigned to a
           department yet. Ask an admin to assign you one.
         </p>
@@ -60,7 +60,7 @@ export default function SessionsPage() {
           <ErrorBanner error={error} />
 
           {!isPending && sessions?.length === 0 && (
-            <p className="rounded-xl bg-white p-10 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+            <p className="panel p-10 text-center text-sm text-slate-500">
               No sessions yet.
             </p>
           )}

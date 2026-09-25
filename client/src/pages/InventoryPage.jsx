@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import PageHeader from '../components/layout/PageHeader.jsx'
-import StatCard from '../components/ui/StatCard.jsx'
+import StatCard, { Figures } from '../components/ui/StatCard.jsx'
 import SearchInput from '../components/ui/SearchInput.jsx'
 import Pagination from '../components/ui/Pagination.jsx'
 import ErrorBanner from '../components/ui/ErrorBanner.jsx'
@@ -72,14 +72,14 @@ export default function InventoryPage() {
         <SearchInput value={q} onChange={handleQChange} placeholder="Search item code…" />
       </div>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
+      <Figures label="Filter by scan status" cols="grid-cols-3" className="mb-6">
         <StatCard label="Total" value={counts.total}
                   active={status === 'all'} onClick={() => handleStatusChange('all')} />
         <StatCard label="Scanned" value={counts.scanned} tone="ok"
                   active={status === 'scanned'} onClick={() => handleStatusChange('scanned')} />
         <StatCard label="Pending" value={counts.pending} tone="warn"
                   active={status === 'pending'} onClick={() => handleStatusChange('pending')} />
-      </div>
+      </Figures>
 
       <ErrorBanner error={error} className="mb-4" />
 

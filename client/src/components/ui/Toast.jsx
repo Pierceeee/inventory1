@@ -35,9 +35,9 @@ export function ToastProvider({ children }) {
 }
 
 const TONES = {
-  success: { icon: 'check',   ring: 'ring-emerald-200', bg: 'bg-ok-50',    fg: 'text-ok-700' },
-  warning: { icon: 'warning', ring: 'ring-amber-200',   bg: 'bg-warn-50',  fg: 'text-warn-700' },
-  info:    { icon: 'info',    ring: 'ring-slate-200',   bg: 'bg-white',    fg: 'text-slate-700' },
+  success: { icon: 'check',   fg: 'text-ok-600' },
+  warning: { icon: 'warning', fg: 'text-warn-600' },
+  info:    { icon: 'info',    fg: 'text-slate-500' },
 }
 
 function ToastViewport({ toasts, onDismiss }) {
@@ -51,16 +51,16 @@ function ToastViewport({ toasts, onDismiss }) {
         return (
           <div
             key={toast.id}
-            className={`pointer-events-auto flex items-start gap-3 rounded-xl px-4 py-3 shadow-lg ring-1 ring-inset motion-safe:animate-[toast-in_180ms_ease-out] ${tone.bg} ${tone.ring}`}>
+            className="pointer-events-auto flex items-start gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-overlay motion-safe:animate-[toast-in_160ms_cubic-bezier(0.16,1,0.3,1)]">
             <Icon name={tone.icon} className={tone.fg} />
             <div className="min-w-0 flex-1">
-              <p className={`text-sm font-medium ${tone.fg}`}>{toast.message}</p>
-              {toast.detail && <p className="mt-0.5 text-xs text-slate-600">{toast.detail}</p>}
+              <p className="text-sm font-semibold text-ink-900">{toast.message}</p>
+              {toast.detail && <p className="mt-0.5 text-[13px] text-slate-600">{toast.detail}</p>}
             </div>
             <button
               type="button"
               onClick={() => onDismiss(toast.id)}
-              className="rounded p-0.5 text-slate-400 transition-colors hover:text-slate-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600">
+              className="-m-1 rounded-md p-1 text-slate-400 transition-colors hover:bg-slate-100 hover:text-ink-900">
               <Icon name="close" size={16} title="Dismiss" />
             </button>
           </div>

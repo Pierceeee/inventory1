@@ -1,9 +1,56 @@
+/* Overpass's middle dot (U+00B7) has zero advance width, so every " · "
+   separator collapsed into the next word ("Admin ·IT"). That one character
+   comes from the system face instead. One face per weight the app uses:
+   Chrome only merges faces whose weight matches exactly, and these are
+   declared after the Overpass faces, so they are checked first. */
+@font-face { font-family: 'Overpass'; font-style: normal; font-weight: 400; unicode-range: U+00B7; src: local('Segoe UI'), local('Helvetica Neue'), local('Arial'); }
+@font-face { font-family: 'Overpass'; font-style: normal; font-weight: 500; unicode-range: U+00B7; src: local('Segoe UI'), local('Helvetica Neue'), local('Arial'); }
+@font-face { font-family: 'Overpass'; font-style: normal; font-weight: 600; unicode-range: U+00B7; src: local('Segoe UI Semibold'), local('Segoe UI'), local('Helvetica Neue'), local('Arial'); }
+@font-face { font-family: 'Overpass'; font-style: normal; font-weight: 700; unicode-range: U+00B7; src: local('Segoe UI Bold'), local('Segoe UI'), local('Helvetica Neue'), local('Arial'); }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-html, body, #root { height: 100%; }
-body { @apply bg-slate-50 text-slate-900 antialiased; }
+@layer base {
+  html, body, #root { height: 100%; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-canvas font-sans text-[15px] leading-normal text-ink-900 antialiased;
+    font-feature-settings: 'kern', 'liga';
+  }
+
+  /* The parts of the page the browser draws still belong to the system. */
+  ::selection { background: theme('colors.brand.100'); color: theme('colors.ink.950'); }
+  input, textarea { caret-color: theme('colors.brand.600'); }
+  :focus-visible { outline: 2px solid theme('colors.brand.600'); outline-offset: 2px; }
+  a { text-underline-offset: 3px; text-decoration-thickness: 1px; }
+
+  /* Figures line up in every table and counter, and a code (asset tag,
+     serial, item code) is never broken across lines. */
+  table, .figures { font-variant-numeric: tabular-nums; }
+  td .font-mono, td.font-mono { white-space: nowrap; }
+
+  * { scrollbar-width: thin; scrollbar-color: theme('colors.slate.300') transparent; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-thumb {
+    background: theme('colors.slate.300');
+    border: 3px solid transparent; border-radius: 999px; background-clip: padding-box;
+  }
+  ::-webkit-scrollbar-thumb:hover { background-color: theme('colors.slate.400'); }
+  ::-webkit-scrollbar-track { background: transparent; }
+}
+
+@layer components {
+  /* A white panel ruled by a hairline - the one container shape. */
+  .panel { @apply rounded-lg border border-slate-200 bg-white shadow-panel; }
+  /* A small caption above a figure or field group, set in the same face. */
+  .caption { @apply text-xs font-semibold uppercase tracking-[0.06em] text-slate-500; }
+  .kbd {
+    @apply inline-flex h-5 min-w-5 items-center justify-center rounded border border-slate-300 bg-white px-1
+      font-sans text-[11px] font-semibold text-slate-500;
+  }
+}
 
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(8px); }
@@ -23,4 +70,16 @@ body { @apply bg-slate-50 text-slate-900 antialiased; }
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* Dropdowns wear the system's chevron, not the browser's. Unlayered, so it
+   outranks the utilities' padding on the same element. */
+select:not([multiple]) {
+  appearance: none;
+  -webkit-appearance: none;
+  padding-right: 2.25rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 0.7rem center;
+  background-size: 16px 16px;
 }

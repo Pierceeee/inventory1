@@ -3,7 +3,8 @@ import FilterChips from '../ui/FilterChips.jsx'
 import SearchInput from '../ui/SearchInput.jsx'
 import StatusBadge from '../ui/StatusBadge.jsx'
 import Button from '../ui/Button.jsx'
-import { formatDateTime } from '../../lib/format.js'
+import { columnLabel, isCodeColumn } from '../../lib/format.js'
+import { ScannedBy } from '../items/ItemsTable.jsx'
 
 const STATUS_CHIPS = [
   { value: undefined, label: 'All' },
@@ -44,14 +45,13 @@ export default function SessionItemsTable({
       render: (i) => <span className="font-mono text-[13px] text-slate-900">{i.item_code}</span>,
     },
     ...visibleColumns.map((name) => ({
-      key: `data:${name}`, header: name, render: (i) => i.data?.[name] ?? '—',
+      key: `data:${name}`, header: columnLabel(name),
+      render: (i) => (isCodeColumn(name) && i.data?.[name]
+        ? <span className="font-mono text-[13px] text-slate-900">{i.data[name]}</span>
+        : i.data?.[name] ?? '—'),
     })),
     { key: 'status', header: 'Status', render: (i) => <StatusBadge status={i.status} /> },
-    { key: 'scanned_by_name', header: 'Scanned by', render: (i) => i.scanned_by_name ?? '—' },
-    {
-      key: 'scanned_at', header: 'Scanned at',
-      render: (i) => (i.scanned_at ? <span className="whitespace-nowrap">{formatDateTime(i.scanned_at)}</span> : '—'),
-    },
+    { key: 'scanned', header: 'Scanned by', className: 'whitespace-nowrap', render: (i) => <ScannedBy item={i} /> },
   ]
   if (renderActions) {
     columns.push({ key: 'actions', header: '', className: 'text-right', render: renderActions })

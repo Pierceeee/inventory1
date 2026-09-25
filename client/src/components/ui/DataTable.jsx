@@ -38,10 +38,10 @@ export default function DataTable({
   if (error) return <ErrorBanner error={error} />
 
   return (
-    <div className="overflow-hidden rounded-xl bg-white ring-1 ring-slate-200">
+    <div className="panel overflow-hidden">
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200">
-          <thead className="bg-slate-50">
+          <thead className="border-b border-slate-200 bg-slate-50/80">
             <tr>
               {columns.map((c) => {
                 const sortable = Boolean(c.sortValue)
@@ -51,17 +51,17 @@ export default function DataTable({
                     key={c.key}
                     scope="col"
                     aria-sort={active ? (sort.direction === 'asc' ? 'ascending' : 'descending') : undefined}
-                    className={`whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500 ${c.className ?? ''}`}>
+                    className={`whitespace-nowrap px-2.5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.07em] text-slate-500 first:pl-4 last:pr-4 ${c.className ?? ''}`}>
                     {sortable ? (
                       <button
                         type="button"
                         onClick={() => toggle(c.key)}
-                        className="inline-flex items-center gap-1 rounded transition-colors hover:text-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+                        className={`inline-flex items-center gap-1 rounded uppercase transition-colors hover:text-ink-900 ${active ? 'text-ink-900' : ''}`}>
                         {c.header}
                         <Icon
                           name={active && sort.direction === 'desc' ? 'chevronDown' : 'chevronUp'}
                           size={12}
-                          className={active ? 'text-brand-600' : 'text-slate-300'}
+                          className={active ? 'text-ink-900' : 'text-slate-300'}
                         />
                       </button>
                     ) : c.header}
@@ -74,9 +74,9 @@ export default function DataTable({
             {sorted.map((row) => (
               <tr key={getRowKey(row)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
-                  className={onRowClick ? 'cursor-pointer transition-colors hover:bg-slate-50' : undefined}>
+                  className={onRowClick ? 'cursor-pointer transition-colors hover:bg-brand-50/50' : 'transition-colors hover:bg-slate-50/70'}>
                 {columns.map((c) => (
-                  <td key={c.key} className={`px-4 py-3 text-sm text-slate-700 ${c.className ?? ''}`}>
+                  <td key={c.key} className={`px-2.5 py-2.5 text-sm text-slate-700 first:pl-4 last:pr-4 ${/whitespace-/.test(c.className ?? '') ? '' : 'whitespace-nowrap sm:whitespace-normal'} ${c.className ?? ''}`}>
                     {c.render(row)}
                   </td>
                 ))}
@@ -89,7 +89,12 @@ export default function DataTable({
       {isLoading && <SkeletonRows columns={columns.length} />}
 
       {!isLoading && sorted.length === 0 && (
-        <p className="px-4 py-10 text-center text-sm text-slate-500">{emptyMessage}</p>
+        <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
+          <span aria-hidden="true" className="flex h-10 w-10 items-center justify-center rounded-md border border-dashed border-slate-300 text-slate-300">
+            <Icon name="inventory" size={20} />
+          </span>
+          <p className="text-sm text-slate-500">{emptyMessage}</p>
+        </div>
       )}
     </div>
   )

@@ -81,7 +81,7 @@ export default function DeleteSessionDialog({ session, open, onClose, onDeleted 
             variant="secondary"
             onClick={handleDownload}
             disabled={download.isPending}
-            className={backedUp ? 'bg-ok-50 text-ok-700 ring-1 ring-inset ring-emerald-200 hover:bg-ok-50' : ''}>
+            className={backedUp ? 'bg-ok-50 text-ok-700 ring-1 ring-inset ring-ok-200 hover:bg-ok-50' : ''}>
             {backedUp ? <Icon name="check" size={16} /> : <Icon name="download" size={16} />}
             {download.isPending ? 'Downloading…' : backedUp ? 'Backup downloaded' : 'Download Excel Backup'}
           </Button>

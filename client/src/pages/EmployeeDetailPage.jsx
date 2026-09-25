@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import PageHeader from '../components/layout/PageHeader.jsx'
+import PageHeader, { BackLink } from '../components/layout/PageHeader.jsx'
 import Button from '../components/ui/Button.jsx'
 import StatusBadge from '../components/ui/StatusBadge.jsx'
 import ErrorBanner from '../components/ui/ErrorBanner.jsx'
@@ -30,7 +30,7 @@ export default function EmployeeDetailPage() {
   return (
     <>
       <PageHeader
-        back={<Link to="/employees" className="mb-1 block text-sm text-brand-700 hover:underline">← Employees</Link>}
+        back={<BackLink to="/employees">Employees</BackLink>}
         title={employee.full_name}
         subtitle={[employee.department, employee.email].filter(Boolean).join(' · ')}
         actions={
@@ -51,7 +51,7 @@ export default function EmployeeDetailPage() {
 
       {outstandingAtOffboarding && (
         <div role="alert"
-             className="mb-6 rounded-lg bg-warn-50 px-4 py-3 text-sm text-warn-700 ring-1 ring-inset ring-amber-200">
+             className="mb-6 rounded-lg bg-warn-50 px-4 py-3 text-sm text-warn-700 ring-1 ring-inset ring-warn-200">
           <strong className="font-semibold">
             {employee.full_name} has resigned but still holds {held.length}{' '}
             {held.length === 1 ? 'device' : 'devices'}.
@@ -64,11 +64,11 @@ export default function EmployeeDetailPage() {
         <section aria-label="Currently held devices">
           <h2 className="mb-2 text-sm font-semibold text-slate-900">Currently held</h2>
           {held.length === 0 ? (
-            <p className="rounded-xl bg-white px-4 py-8 text-center text-sm text-slate-500 ring-1 ring-slate-200">
+            <p className="panel px-4 py-8 text-center text-sm text-slate-500">
               {employee.full_name} holds no devices.
             </p>
           ) : (
-            <ul className="flex flex-col gap-px overflow-hidden rounded-xl bg-slate-200 ring-1 ring-slate-200">
+            <ul className="flex flex-col gap-px overflow-hidden rounded-lg border border-slate-200 bg-slate-200 shadow-panel">
               {held.map((d) => (
                 <li key={d.assignment_id} className="flex items-center justify-between gap-3 bg-white px-4 py-3">
                   <div>
