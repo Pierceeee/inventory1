@@ -237,6 +237,9 @@ How the columns are read:
 
 ## 5. Setting it up (first time)
 
+> Running it on your own computer for the first time? **[LOCAL_SETUP.md](LOCAL_SETUP.md)**
+> walks through every step, with the output to expect and fixes for common problems.
+
 You need:
 
 - [Node.js](https://nodejs.org) **22.12** or newer (the current LTS is fine)
