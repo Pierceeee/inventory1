@@ -1,0 +1,78 @@
+# Adspark IT Inventory on a Linux Docker host, reached over the office LAN.
+# See README "Running it with Docker".
+#
+#   app    Node: the API and the built pages. Never published to the host -
+#          only Caddy can reach it, over the private "akm" network.
+#   caddy  HTTPS on ports 80/443 with its own certificate authority
+#          ("tls internal"), forwarding to app. The only thing the LAN sees.
+#
+# The database is Supabase (DATABASE_URL in .env); nothing here stores data
+# except Caddy's certificates.
+name: adspark-it-inventory
+
+services:
+  app:
+    build: .
+    # A local build by default; on AWS the deploy sets AKM_IMAGE to the ECR image.
+    image: ${AKM_IMAGE:-adspark-it-inventory:local}
+    env_file: .env
+    environment:
+      # Fixed here, not in .env: they describe this compose network.
+      HOST: 0.0.0.0
+      PORT: "3001"
+      # Trust X-Forwarded-For only from the Caddy container, so ALLOWED_IPS
+      # (from .env - the office LAN subnet) checks the real visitor.
+      TRUST_PROXY: 172.30.0.2
+    networks:
+      akm:
+        ipv4_address: 172.30.0.3
+    # Exactly one instance: rate limits and the export guard live in memory.
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      app:
+        condition: service_healthy
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # The name (or LAN IP) people type, e.g. akm.adspark.lan or 192.168.1.50
+      AKM_HOSTNAME: ${AKM_HOSTNAME:?Set AKM_HOSTNAME in .env - the name or LAN IP people will open}
+      # "internal" (Caddy's own certificate, for the office LAN) or an email
+      # address (a public Let's Encrypt certificate, e.g. on AWS).
+      AKM_TLS: ${AKM_TLS:-internal}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      akm:
+        ipv4_address: 172.30.0.2
+    restart: unless-stopped
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  akm:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24
+
+volumes:
+  # Caddy's certificate authority and certificates - keep this volume, or
+  # every device has to trust a new root certificate.
+  caddy_data:
+  caddy_config:

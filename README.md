@@ -33,6 +33,8 @@ The two modules share sign-in (Supabase email/password), roles (Admin / Head / S
 9. [Current limits](#9-current-limits)
 10. [Upgrading an existing install](#10-upgrading-an-existing-install)
 11. [Running it for the office](#11-running-it-for-the-office)
+12. [Running it with Docker](#12-running-it-with-docker)
+13. [Deploying to AWS from GitLab](#13-deploying-to-aws-from-gitlab)
 
 ---
 
@@ -683,3 +685,146 @@ Don't set `HOST=0.0.0.0` on an office server that has Caddy in front: it opens
 Node's own plain-HTTP port to every device on the LAN alongside Caddy, so
 sign-ins and data would cross the network unencrypted, and phone cameras
 refuse to work over plain `http://`.
+
+---
+
+## 12. Running it with Docker
+
+For a **Linux server on the office LAN**. The repo includes a `Dockerfile`, `docker-compose.yml` and `Caddyfile` that run two containers:
+
+- **`app`**: the Node server. It serves the API and the built pages as one process. Its port is **never published** to the host; only Caddy can reach it, over a private Docker network.
+- **`caddy`**: HTTPS on ports 80 and 443, forwarding to `app`. This is the only thing the LAN sees.
+
+The database stays on Supabase, so no database runs in Docker.
+
+Inside the container, `HOST=0.0.0.0` is safe. It's the setting section 11 warns against on a bare server, but here the app port isn't published. The same safety rules still apply: `ALLOWED_IPS` is required, and `TRUST_PROXY` trusts only the Caddy container (`172.30.0.2`), so the allowlist checks each visitor's real address.
+
+**You need:**
+- Docker Engine with the Compose plugin, on Linux.
+- Internet access while building, because `npm` downloads SheetJS from `cdn.sheetjs.com`.
+
+Docker Desktop on Windows or Mac is not supported for this setup: there, every visitor appears to come from Docker's gateway, so `ALLOWED_IPS` can't tell office devices apart.
+
+**1. Set up `.env`** (copy `.env.example`). Alongside the usual Supabase settings:
+
+```
+ALLOWED_IPS=192.168.1.0/24        # the office LAN subnet
+AKM_HOSTNAME=akm.adspark.lan      # the name people open, or the server's LAN IP
+```
+
+Point `akm.adspark.lan` at the server's LAN IP in the office router's DNS, or use the IP itself. `docker-compose.yml` sets `HOST`, `PORT` and `TRUST_PROXY` for the containers and overrides any values in `.env`.
+
+**2. Build, migrate, start:**
+
+```
+docker compose build
+docker compose run --rm app node server/scripts/migrate.js
+docker compose up -d
+```
+
+**3. Trust Caddy's certificate on each computer and phone, once.** A public certificate authority can't vouch for a LAN-only name, so Caddy runs its own. Copy its root certificate out:
+
+```
+docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt ./akm-root.crt
+```
+
+Install `akm-root.crt` as a trusted root:
+- **Windows:** double-click it and put it in *Trusted Root Certification Authorities*.
+- **macOS:** add it in Keychain Access and set it to *Always Trust*.
+- **iPhone:** install the profile, then turn it on under *Settings › General › About › Certificate Trust Settings*.
+- **Android:** *Settings › Security › Encryption & credentials › Install a certificate › CA certificate*.
+
+Until a device trusts it, the browser shows a warning and the phone camera scanner won't start. The root certificate lives in the `caddy_data` volume. Keep that volume, or every device has to trust a new one.
+
+**Updating:**
+
+```
+git pull
+docker compose build
+docker compose run --rm app node server/scripts/migrate.js   # before starting the new code
+docker compose up -d
+```
+
+**Everyday commands:**
+- `docker compose logs -f app` shows the server's log.
+- `docker compose ps` shows health (the `app` container checks `/api/health`).
+- `docker compose run --rm app node server/scripts/userRole.js <email> admin` sets a role (see "Locked out / first admin").
+
+**Keep it to one `app` container.** Don't scale it: rate limits and the export guard are in memory (section 11, "Single process requirement").
+
+If people reach the server over **IPv6**, Docker may show the gateway instead of the visitor. Open it by its IPv4 address or name, or enable IPv6 in Docker, so `ALLOWED_IPS` sees real addresses.
+
+---
+
+## 13. Deploying to AWS from GitLab
+
+`.gitlab-ci.yml` builds the Docker image and deploys it to one **EC2 server** running the Docker setup from section 12. People reach it by a **public name**, such as `akm.adspark.ph`, that only the office's public IPs can open.
+
+```
+every branch / merge request   lint · build · npm audit
+main                           + build the image, push it to Amazon ECR
+                               + deploy (click Run on the deploy job)
+```
+
+**How it stays safe:**
+- **No AWS keys in GitLab.** Jobs sign in with a short-lived GitLab OIDC token, which only this project's `main` branch can exchange for the deploy role.
+- **App secrets never touch GitLab.** They live in AWS Parameter Store, and the server writes its own `.env` from them at deploy time.
+- **No SSH.** The deploy goes through AWS Systems Manager, so port 22 stays closed.
+
+The automated tests aren't in this repository (they're kept locally), so the pipeline checks lint, build and dependencies. Run `npm test` and `npm run test:e2e` locally before merging to `main`.
+
+### One-time AWS setup
+
+The example region is `ap-southeast-1` (Singapore). The files mentioned are in `deploy/aws/`; replace `ACCOUNT_ID`, `REGION`, `GITLAB_GROUP` and `GITLAB_PROJECT` in them.
+
+1. **ECR repository:** create `adspark-it-inventory`. Turn on *Scan on push*, and add a lifecycle rule that keeps the last 20 images.
+2. **Settings in Parameter Store**, one parameter per setting under `/akm/prod/`:
+
+   | Parameter | Type | Value |
+   |---|---|---|
+   | `/akm/prod/DATABASE_URL` | SecureString | the Supabase *Session pooler* string |
+   | `/akm/prod/SUPABASE_URL` | String | `https://<project-ref>.supabase.co` |
+   | `/akm/prod/SUPABASE_ANON_KEY` | SecureString | the anon / publishable key |
+   | `/akm/prod/SUPABASE_SERVICE_ROLE_KEY` | SecureString | the service-role key (for Register) |
+   | `/akm/prod/ALLOWED_IPS` | String | the office's **public** IP(s), e.g. `203.0.113.10, 198.51.100.20` |
+   | `/akm/prod/AKM_HOSTNAME` | String | `akm.adspark.ph` |
+   | `/akm/prod/AKM_TLS` | String | an email for Let's Encrypt notices, e.g. `it@adspark.ph` |
+   | `/akm/prod/ADMIN_EMAILS` | String | optional, see "Locked out / first admin" |
+
+   Use the default `aws/ssm` key. If you use your own KMS key, also give the server role `kms:Decrypt` on it.
+3. **Server role:** create an EC2 role with the AWS-managed policy `AmazonSSMManagedInstanceCore`, plus `iam/ec2-instance-permissions.json` (pull the image, read `/akm/prod`).
+4. **Security group:**
+   - Allow **443 only from the office's public IP(s)**.
+   - Allow **80 from anywhere**. Let's Encrypt must reach it to issue and renew the certificate, and Caddy only redirects port 80 to HTTPS, so no app page is served there.
+   - Open **no port 22**.
+5. **EC2 instance:**
+   - Amazon Linux 2023, `t3.small`, 20 GB disk.
+   - The role and security group from steps 3–4.
+   - Tag `app=adspark-it-inventory`; the deploy role may only run commands on instances with that tag.
+   - `deploy/aws/ec2-user-data.sh` as its *User data*. It installs Docker and Compose; the SSM agent comes with Amazon Linux.
+   - An **Elastic IP**, with the DNS `A` record `akm.adspark.ph` pointing at it.
+6. **GitLab sign-in to AWS:**
+   - In IAM, add an *Identity provider*: OpenID Connect, URL `https://gitlab.com`, audience `https://gitlab.com`.
+   - Create the role `gitlab-akm-deploy`, with `iam/gitlab-deploy-trust-policy.json` as its trust policy and `iam/gitlab-deploy-permissions.json` as its permissions.
+
+### GitLab setup
+
+1. **Push the repository** to a new GitLab project; GitHub can stay as a second remote:
+   ```
+   git remote add gitlab git@gitlab.com:GITLAB_GROUP/GITLAB_PROJECT.git
+   git push gitlab main testing
+   ```
+2. **CI/CD variables** (*Settings › CI/CD › Variables*; none of them are secrets):
+   - `AWS_ACCOUNT_ID`
+   - `AWS_ROLE_ARN`, e.g. `arn:aws:iam::123456789012:role/gitlab-akm-deploy`
+   - `EC2_INSTANCE_ID`
+
+   `AWS_REGION` defaults to `ap-southeast-1` in `.gitlab-ci.yml`.
+3. **Protect `main`** (*Settings › Repository › Protected branches*), so only maintainers can push to the branch that can deploy.
+
+### Deploying, updating and rolling back
+
+- **Deploy:** merge to `main`. After *push-image* finishes, click **Run** on the `deploy` job. It pulls the image, runs the database migrations **before** starting the new version, starts it, and waits until `/api/health` reports healthy. If the app doesn't come up, the job fails and prints the last log lines.
+- **Roll back:** open an earlier pipeline and re-run its `deploy` job; each pipeline deploys its own image. Migrations only ever add to the database, so older code still runs against it.
+- **Logs:** use *Systems Manager › Session Manager* to open a shell on the server, then run `cd /opt/adspark-it-inventory && docker compose logs -f app`.
+- **One server, one app container.** The in-memory rate limits need a single process (section 11). `resource_group: production` also stops two deploys running at once.

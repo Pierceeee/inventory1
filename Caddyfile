@@ -1,0 +1,19 @@
+# HTTPS in front of the app. AKM_HOSTNAME and AKM_TLS come from .env via
+# docker-compose.
+#
+# AKM_TLS=internal (the default) - office LAN: Caddy runs its own certificate
+#   authority, because a public CA cannot issue certificates for LAN-only
+#   names. Each computer and phone trusts Caddy's root certificate once
+#   (README "Running it with Docker").
+# AKM_TLS=<an email address> - a public name (e.g. on AWS): Caddy gets a free
+#   Let's Encrypt certificate and renews it; the email receives expiry notices.
+#
+# HTTP on port 80 redirects to HTTPS automatically.
+{$AKM_HOSTNAME} {
+	tls {$AKM_TLS:internal}
+	encode zstd gzip
+
+	# Caddy passes the visitor's address in X-Forwarded-For; the app trusts
+	# that header only from this container (TRUST_PROXY in docker-compose.yml).
+	reverse_proxy app:3001
+}

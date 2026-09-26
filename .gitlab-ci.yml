@@ -1,0 +1,143 @@
+# Adspark IT Inventory - GitLab CI/CD into AWS (EC2 + Docker Compose).
+# See README "Deploying to AWS from GitLab" for the one-time AWS setup and
+# the CI/CD variables below.
+#
+#   every branch / merge request   lint, build, dependency audit
+#   default branch (main)          + build the image and push it to ECR
+#                                  + deploy (click "Run" on the deploy job)
+#
+# No AWS keys are stored in GitLab: jobs sign in with a short-lived OIDC
+# token that only this project's main branch can exchange for the deploy
+# role. App secrets live in AWS Parameter Store and never pass through here.
+#
+# Settings > CI/CD > Variables (none of these are secrets):
+#   AWS_ACCOUNT_ID    e.g. 123456789012
+#   AWS_ROLE_ARN      the deploy role, e.g. arn:aws:iam::123456789012:role/gitlab-akm-deploy
+#   EC2_INSTANCE_ID   the app host, e.g. i-0abc123def4567890
+
+workflow:
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH && $CI_OPEN_MERGE_REQUESTS
+      when: never
+    - if: $CI_COMMIT_BRANCH
+
+stages:
+  - verify
+  - image
+  - deploy
+
+variables:
+  NODE_IMAGE: node:22-alpine
+  AWS_REGION: ap-southeast-1
+  ECR_REPOSITORY: adspark-it-inventory
+  PARAM_PATH: /akm/prod
+  IMAGE_TAG: $CI_COMMIT_SHORT_SHA
+
+default:
+  interruptible: true
+
+# ---- verify: every branch and merge request --------------------------------
+
+.node:
+  image: $NODE_IMAGE
+  cache:
+    key:
+      files: [package-lock.json]
+    paths: [.npm/]
+  before_script:
+    - npm ci --cache .npm --prefer-offline --no-audit --no-fund
+
+lint:
+  extends: .node
+  stage: verify
+  script:
+    - npm run lint
+
+build:
+  extends: .node
+  stage: verify
+  script:
+    - npm run build
+
+audit:
+  image: $NODE_IMAGE
+  stage: verify
+  script:
+    - npm audit --audit-level=high
+
+# ---- AWS sign-in (OIDC), shared by the jobs below ---------------------------
+
+.aws:
+  id_tokens:
+    GITLAB_OIDC_TOKEN:
+      aud: https://gitlab.com
+  before_script:
+    - apk add --no-cache aws-cli
+    - printf '%s' "$GITLAB_OIDC_TOKEN" > "$CI_PROJECT_DIR/.oidc-token"
+    - export AWS_WEB_IDENTITY_TOKEN_FILE="$CI_PROJECT_DIR/.oidc-token"
+    - export AWS_ROLE_SESSION_NAME="gitlab-${CI_PROJECT_ID}-${CI_PIPELINE_ID}"
+    - export AWS_DEFAULT_REGION="$AWS_REGION"
+    - export REGISTRY="${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+    - export IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+    - aws sts get-caller-identity --query Arn --output text
+
+.main_only:
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ---- image: build and push to ECR -------------------------------------------
+
+push-image:
+  extends: [.aws, .main_only]
+  stage: image
+  image: docker:27
+  services:
+    - docker:27-dind
+  variables:
+    DOCKER_TLS_CERTDIR: "/certs"
+  script:
+    - aws ecr get-login-password | docker login --username AWS --password-stdin "$REGISTRY"
+    - docker build --pull --label "org.opencontainers.image.revision=$CI_COMMIT_SHA" -t "$IMAGE" .
+    - docker push "$IMAGE"
+
+# ---- deploy: run the release on the EC2 host through Systems Manager -------
+
+deploy:
+  extends: [.aws]
+  stage: deploy
+  image: alpine:3.20
+  needs: [push-image]
+  interruptible: false
+  resource_group: production
+  environment:
+    name: production
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+  script:
+    # The release: compose file, Caddyfile and the deploy script, sent
+    # inline so the server needs no copy of the repository.
+    - mkdir release && cp docker-compose.yml Caddyfile deploy/aws/deploy.sh release/
+    - BUNDLE="$(tar czf - -C release . | base64 | tr -d '\n')"
+    - REMOTE="set -e; mkdir -p /opt/adspark-it-inventory/release; echo ${BUNDLE} | base64 -d | tar xzf - -C /opt/adspark-it-inventory/release; bash /opt/adspark-it-inventory/release/deploy.sh ${AWS_REGION} ${IMAGE} ${PARAM_PATH}"
+    - printf '{"commands":["%s"],"executionTimeout":["1200"]}' "$REMOTE" > params.json
+    - >-
+      COMMAND_ID="$(aws ssm send-command
+      --instance-ids "$EC2_INSTANCE_ID"
+      --document-name AWS-RunShellScript
+      --comment "adspark-it-inventory ${IMAGE_TAG}"
+      --parameters file://params.json
+      --query Command.CommandId --output text)"
+    - echo "Systems Manager command ${COMMAND_ID} - deploying ${IMAGE}"
+    - |
+      status=Pending
+      for i in $(seq 1 120); do
+        sleep 10
+        status="$(aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" --query Status --output text 2>/dev/null || echo Pending)"
+        case "$status" in Pending|InProgress|Delayed) continue ;; *) break ;; esac
+      done
+      aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" --query StandardOutputContent --output text || true
+      aws ssm get-command-invocation --command-id "$COMMAND_ID" --instance-id "$EC2_INSTANCE_ID" --query StandardErrorContent --output text >&2 || true
+      echo "Deploy status: ${status}"
+      test "$status" = Success

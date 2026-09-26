@@ -1,0 +1,61 @@
+# Keep the build context to source code. Nothing here may reach an image:
+# secrets, real inventory data, tests, build output, local tooling.
+
+# Dependencies and build output (rebuilt inside the image)
+**/node_modules
+**/dist
+e2e/.client-dist
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Real inventory data and exports
+docs/csv
+*.csv
+*.xlsx
+*.xls
+
+# Tests and test output
+**/*.test.js
+**/*.test.jsx
+server/test
+client/src/test
+client/vitest.config.js
+server/vitest.config.js
+e2e
+playwright.config.js
+coverage
+playwright-report
+test-results
+
+# Planning and design notes
+improvements.md
+docs/superpowers
+**/PRODUCT.md
+**/DESIGN.md
+**/DESIGN.json
+**/.impeccable
+
+# Repo, editor and OS files
+.git
+.gitignore
+.gitattributes
+.dockerignore
+Dockerfile
+docker-compose*.yml
+.gitlab-ci.yml
+deploy
+Caddyfile
+.vscode
+.idea
+.claude
+*.log
+.DS_Store
+Thumbs.db
